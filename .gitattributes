@@ -1,1 +1,1 @@
-dog.bin filter=lfs diff=lfs merge=lfs -text
+dog.bin.xxx filter=lfs diff=lfs merge=lfs -text
