@@ -1,5 +1,5 @@
 import torch
-from models.ssl import SSLModel
+from models.xlsr import SSLModel
 import torch.nn as nn
 
 class SpatialAttention(nn.Module):

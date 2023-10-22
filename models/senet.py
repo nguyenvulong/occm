@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 import numpy as np
-from ssl import SSLModel
+from models.xlsr import SSLModel
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
@@ -156,12 +156,12 @@ class total_resnet34(nn.Module):
     def __init__(self, device): 
         super(total_resnet34, self).__init__()
         self.frontend = SSLModel(device) 
-        self.resnet34 = se_resnet34()
+        self.resnet34 = se_resnet34().cuda()
 
     def forward(self, x):
         """combine the ssl and cnn net
            output of `extract_feat` resides on GPU
-           so we need to move it to CPU to avoid
+           so we need to move se_resnet34 to GPU also, avoiding the
            <<RuntimeError: Input type (torch.cuda.FloatTensor) 
            and weight type (torch.FloatTensor) should be the same>>
 
@@ -169,7 +169,7 @@ class total_resnet34(nn.Module):
             x (Tensor): (batch_size, time series)
         """
         # print("x.shape before frontend", x.shape)
-        x = self.frontend.extract_feat(x).to("cpu") # (batch_size, frame, 1024)
+        x = self.frontend.extract_feat(x) # (batch_size, frame, 1024)
         # print("x.shape after frontend", x.shape)
         x = x.unsqueeze(1) # (batch_size, 1, frame, 1024)
         # print("x.shape after unsqueeze", x.shape)

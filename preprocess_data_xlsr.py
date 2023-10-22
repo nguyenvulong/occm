@@ -4,9 +4,9 @@ import torch.nn.functional as F
 import librosa
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from models.ssl import SSLModel
+from models.xlsr import SSLModel
 
-from utils import extract_lfcc, extract_cwt, extract_ssqcwt, extract_bfcc, extract_cqcc, extract_lpc, extract_mfcc, extract_mel
+# from utils import extract_lfcc, extract_cwt, extract_ssqcwt, extract_bfcc, extract_cqcc, extract_lpc, extract_mfcc, extract_mel
 
 # This version 5 of preprocess_data.py is about synthetic speech detection
 # we will use the Partial Spoof dataset 
