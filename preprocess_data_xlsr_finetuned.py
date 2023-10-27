@@ -102,9 +102,7 @@ class PFDataset(Dataset):
          
             start = 0
             end = audio_length
-            
-            
-
+ 
             
             try:
                 segment_labels = dict_labels[audio_name]
@@ -157,7 +155,6 @@ class PFDataset(Dataset):
 
     def collate_fn(self, batch):
         """pad the time series 1D"""
-        # print("collate_fn")
         max_width = max(features.shape[0] for features, _ in batch)
         padded_batch_features = []
         for features, _ in batch:
@@ -169,33 +166,7 @@ class PFDataset(Dataset):
         
         padded_batch_features = torch.stack(padded_batch_features, dim=0)
         return padded_batch_features, labels
-    
-    # def collate_fn(self, batch):
-    #     # Find the maximum dimension along the second axis
-    #     max_dim = max(features.shape[1] for features, _ in batch)
-        
-    #     # Pad sequences to match the maximum dimension
-    #     padded_batch = [
-    #         F.pad(features, (0, max_dim - features.shape[1]), mode='constant', value=0)
-    #         for features, _ in batch
-    #     ]
-        
-    #     # Stack the padded sequences along a new dimension (representing batch size)
-    #     padded_sequences = torch.stack(padded_batch, dim=0)
-        
-    #     # Collect the labels
-    #     labels = torch.tensor([label for _, label in batch])
-        
-    #     return padded_sequences, labels
-
 
 
 if __name__== "__main__":
-    d = "./v5_w2v2_train"
-    print(f"Dataset: {d}, Extract Function: wav2vec2")
-    # PS_LABEL_FILE = "./database/segment_labels/train_seglab_0.16.npy"
-    # PS_AUDIO_DIR = "./database/train/con_wav"
-    print(f"PS_LABEL_FILE: {PS_LABEL_FILE}, PS_AUDIO_DIR: {PS_AUDIO_DIR}")
-    dataset = PFDataset(dataset_dir=d, extract_func="", preprocessed=False)
-
     pass

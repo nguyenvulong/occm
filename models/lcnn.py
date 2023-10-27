@@ -2,9 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import sys
 import numpy as np
 from torch.nn import Parameter
 from torch.autograd import Variable
+
+sys.path.append("models")
+from xlsr import SSLModel
 
 # from .base_model import BaseModel
 
@@ -237,8 +241,37 @@ def lcnn_net(**kwargs):
     return model
 
 
+class ssl_lcnn(nn.Module):
+    def __init__(self, device): 
+        super(ssl_lcnn, self).__init__()
+        self.frontend = SSLModel(device) 
+        self.lcnn = lcnn_net(asoftmax=False).cuda()
+
+    def forward(self, x):
+        """combine the ssl and lcnn net
+           output of `extract_feat` resides on GPU
+           so we need to move se_resnet34 to GPU also, avoiding the
+           <<RuntimeError: Input type (torch.cuda.FloatTensor) 
+           and weight type (torch.FloatTensor) should be the same>>
+
+        Args:
+            x (Tensor): (batch_size, time series)
+        """
+        # print("x.shape before frontend", x.shape)
+        x = self.frontend.extract_feat(x) # (batch_size, frame, 1024)
+        # print("x.shape after frontend", x.shape)
+        x = x.unsqueeze(1) # (batch_size, 1, frame, 1024)
+        # print("x.shape after unsqueeze", x.shape)
+        x = self.lcnn(x) # (batch_size, 2)
+        # print("x.shape", x.shape)
+        return x
+
+
 if __name__ == '__main__':
-    net = lcnn_net(asoftmax=False)
-    input = torch.randn(8, 1, 100, 20)
-    out = net(input)
-    print(out)
+    model = ssl_lcnn("cuda")
+    audio_file = "/datac/longnv/audio_samples/ADD2023_T2_T_00000000.wav"
+    import librosa
+    import torch
+    audio_data, _ = librosa.load(audio_file, sr=None)
+    emb = model(torch.Tensor(audio_data).unsqueeze(0).to("cuda"))
+    print(emb.shape)

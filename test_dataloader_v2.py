@@ -13,7 +13,6 @@ from sklearn.utils.class_weight import compute_class_weight
 from models.lcnn import *
 from models.cnn import *
 from models.senet import *
-# from utils import *
 
 # Train and Evaluate
 
@@ -22,46 +21,15 @@ print("Arguments...")
 parser = argparse.ArgumentParser(description='Train a model on a dataset')
 parser.add_argument('--train_dataset_dir', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof2019_LA_train/flac",
                     help='Path to the dataset directory')
-parser.add_argument('--test_dataset_dir', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof2019_LA_test/flac",
+parser.add_argument('--test_dataset_dir', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof2019_LA_eval/flac",
                     help='Path to the test dataset directory')
-parser.add_argument('--model', type=str, default="total_resnet34")
+parser.add_argument('--model', type=str, default="ssl_resnet34")
 
 # in case of finetuned, dataset_dir is the raw audio file directory instead of the extracted feature directory
 parser.add_argument('--finetuned', action='store_true', default=False)
 parser.add_argument('--train_protocol_file', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt")
 parser.add_argument('--test_protocol_file', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt")
 args = parser.parse_args()
-
-print("collate_fn...")
-# collate function
-# def collate_fn(batch):
-#     max_width = max(features.shape[1] for features, _ in batch)
-#     max_height = max(features.shape[0] for features, _ in batch)
-#     padded_batch_features = []
-#     for features, _ in batch:
-#         pad_width = max_width - features.shape[1]
-#         pad_height = max_height - features.shape[0]
-#         padded_features = F.pad(features, (0, pad_width, 0, pad_height), mode='constant', value=0)
-#         padded_batch_features.append(padded_features)
-    
-#     labels = torch.tensor([label for _, label in batch])
-    
-#     padded_batch_features = torch.stack(padded_batch_features, dim=0)
-#     return padded_batch_features, labels
-
-def collate_fn_total(batch):
-    """pad the time series 1D"""
-    max_width = max(features.shape[0] for features, _ in batch)
-    padded_batch_features = []
-    for features, _ in batch:
-        pad_width = max_width - features.shape[0]
-        padded_features = F.pad(features, (0, pad_width), mode='constant', value=0)
-        padded_batch_features.append(padded_features)
-        
-    labels = torch.tensor([label for _, label in batch])
-    
-    padded_batch_features = torch.stack(padded_batch_features, dim=0)
-    return padded_batch_features, labels
 
 
 # Load the dataset
@@ -86,8 +54,8 @@ else:
 batch_size = 16
 
 print("Creating dataloaders...")
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=collate_fn_total)
-test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=collate_fn_total)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=train_dataset.collate_fn)
+test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=test_dataset.collate_fn)
 
 print("Instantiating model...")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -106,10 +74,16 @@ elif args.model == "se_resnet34":
     model = se_resnet34().to(device)
 elif args.model == "total_cnn_net":
     model = total_cnn_net(device).to(device)
-elif args.model == "total_resnet34":
-    model = total_resnet34(device).to(device)
+elif args.model == "ssl_resnet34":
+    model = ssl_resnet34(device).to(device)
 
+# model.frontend.requires_grad = False
+
+# for name, param in model.named_parameters():
+#     if param.requires_grad:
+#         print (name)
 model = DataParallel(model)
+
 
 # Class weights
 # print(f"Balanced class weights for train dataset: {args.train_dataset_dir}")
@@ -151,6 +125,7 @@ for epoch in range(num_epochs):
 
     for i, data in enumerate(train_dataloader, 0):
         inputs, labels = data[0].to(device), data[1].to(device)
+        print("labels: ", labels)
         # print(f"inputs.shape = {inputs.shape}")
 
         if not args.finetuned:
@@ -160,7 +135,7 @@ for epoch in range(num_epochs):
 
         # Forward pass
         outputs = model(inputs)
-
+        print("outputs: ", outputs[0])
         # Calculate the loss
         loss = criterion(outputs, labels)
         
@@ -232,4 +207,4 @@ for epoch in range(num_epochs):
     print("Saving the best model...")
     if test_acc > best_test_acc:
         best_test_acc = test_acc
-        torch.save(model.module.state_dict(), args.model + "_" + os.path.basename(args.test_dataset_dir).split("_")[1] + "_best.pt")
+        torch.save(model.module.state_dict(), args.model  + "_best.pt")

@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
 import numpy as np
-from models.xlsr import SSLModel
+from xlsr import SSLModel
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
@@ -82,6 +81,8 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, channels[4], layers[3], stride=2)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1)) 
 
+        # self.classifier = nn.Linear(channels[4] * block.expansion, num_classes)
+        self.embedding = nn.Linear(channels[4] * block.expansion, 128)
         self.classifier = nn.Linear(channels[4] * block.expansion, num_classes)
 
         for m in self.modules():
@@ -135,10 +136,12 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x).view(x.size()[0], -1)
         # print(x.shape)
-        out = self.classifier(x)
+        out = self.embedding(x)
+        out = self.classifier(out)
         # print(out.shape)
-        return out
+        # return out
         # if self.focal_loss: return out 
+        return F.log_softmax(out, dim=-1)
         if not eval:
             return F.log_softmax(out, dim=-1), x
         else:
@@ -152,14 +155,14 @@ def se_resnet12(**kwargs):
     model = ResNet(SEBasicBlock, [1, 2, 3, 1], **kwargs)
     return model
 
-class total_resnet34(nn.Module):
+class ssl_resnet34(nn.Module):
     def __init__(self, device): 
-        super(total_resnet34, self).__init__()
+        super(ssl_resnet34, self).__init__()
         self.frontend = SSLModel(device) 
         self.resnet34 = se_resnet34().cuda()
 
     def forward(self, x):
-        """combine the ssl and cnn net
+        """combine the ssl and se_resnet34 net
            output of `extract_feat` resides on GPU
            so we need to move se_resnet34 to GPU also, avoiding the
            <<RuntimeError: Input type (torch.cuda.FloatTensor) 
@@ -173,13 +176,13 @@ class total_resnet34(nn.Module):
         # print("x.shape after frontend", x.shape)
         x = x.unsqueeze(1) # (batch_size, 1, frame, 1024)
         # print("x.shape after unsqueeze", x.shape)
-        x = self.resnet34(x) # (batch_size, 2)
+        x = self.resnet34(x) # (batch_size, 128)
         # print("x.shape", x.shape)
         return x
     
 # main function
 if __name__ == "__main__":
-    model = total_resnet34("cuda")
+    model = ssl_resnet34("cuda")
     audio_file = "/datac/longnv/audio_samples/ADD2023_T2_T_00000000.wav"
     import librosa
     import torch
