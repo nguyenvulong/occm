@@ -140,7 +140,9 @@ class PFDataset(Dataset):
         return self._length
 
     def __getitem__(self, idx):
-
+        """return feature and label of each audio file in the protocol file
+        """
+        # TODO: how to distribute the samples in each batch
         file_path = os.path.join(self.dataset_dir, self.file_list[idx] + ".flac")
         feature, _ = librosa.load(file_path, sr=None)
         # convert label "spoof" = 1 and bonafine = 0

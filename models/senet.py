@@ -138,14 +138,17 @@ class ResNet(nn.Module):
         # print(x.shape)
         out = self.embedding(x)
         out = self.classifier(out)
-        # print(out.shape)
-        # return out
+        return out
+    
+        # only use log_softmax if the loss function declared later is NLLLoss
+        # otherwise, just return `out` and use CrossEntropyLoss as the loss function
+        
         # if self.focal_loss: return out 
-        return F.log_softmax(out, dim=-1)
-        if not eval:
-            return F.log_softmax(out, dim=-1), x
-        else:
-            return F.log_softmax(out, dim=-1)
+        # return F.log_softmax(out, dim=-1)
+        # if not eval:
+        #     return F.log_softmax(out, dim=-1), x
+        # else:
+        #     return F.log_softmax(out, dim=-1)
 
 def se_resnet34(**kwargs):
     model = ResNet(SEBasicBlock, [3, 4, 6, 3], **kwargs)

@@ -51,7 +51,7 @@ else:
     test_dataset = PFDataset(dataset_dir=args.test_dataset_dir, extract_func=args.extract_func)
 
 # Create dataloaders for training and validation
-batch_size = 16
+batch_size = 8
 
 print("Creating dataloaders...")
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=train_dataset.collate_fn)
@@ -98,7 +98,12 @@ model = DataParallel(model)
 # Define the loss function and optimizer
 # criterion = nn.CrossEntropyLoss(weight=weights)
 criterion = nn.CrossEntropyLoss()
-
+# Also consider criterion = nn.BCEWithLogitsLoss()
+# Note that nn.CrosEntropyLoss() expects raw logits from the last layer 
+# and target labels are class indices
+# while nn.BCEWithLogitsLoss() combines a Sigmoid layer and the BCELoss in one single class,
+# so it expects raw logits from the last layer,    
+# and target labels are class probabilities
 
 if args.model == "lcnn_net_asoftmax":
     criterion = AngleLoss()
@@ -135,7 +140,8 @@ for epoch in range(num_epochs):
 
         # Forward pass
         outputs = model(inputs)
-        print("outputs: ", outputs[0])
+        # print(f"outputs.shape = {outputs.shape}")
+        print("outputs: ", outputs)
         # Calculate the loss
         loss = criterion(outputs, labels)
         
