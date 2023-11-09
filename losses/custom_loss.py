@@ -44,17 +44,13 @@ def descriptiveness_loss(batch_embeddings, labels):
     Inputs:
         batch_embeddings: tensor of shape (4, 2), where "4" is the number of samples and "2" represents "bona fide" or "spoof" class
         labels: tensor of shape (4,), where each element is either 0 or 1 representing the label of the pair
-    
+  
     Output:
         loss: sum of 4 scalar tensors representing the total cross entropy loss
     """
-    
     # Calculate the cross entropy loss for each pair of samples
     loss = F.cross_entropy(batch_embeddings, labels)
-    
+
     # Sum up the losses
     total_loss = torch.sum(loss)
-    
     return total_loss
-
- 

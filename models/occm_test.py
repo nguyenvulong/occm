@@ -1,6 +1,8 @@
-from occm import *
+import sys
+import torch
 sys.path.append("losses")
-from custom_loss import *
+
+from custom_loss import compactness_loss, descriptiveness_loss
 
 x, y = torch.rand(4, 128), torch.rand(4, 2)
 
