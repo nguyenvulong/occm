@@ -52,5 +52,5 @@ def descriptiveness_loss(batch_embeddings, labels):
     loss = F.cross_entropy(batch_embeddings, labels)
 
     # Sum up the losses
-    total_loss = torch.sum(loss)
-    return total_loss
+    batch_loss = torch.sum(loss)
+    return batch_loss

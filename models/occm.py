@@ -50,6 +50,12 @@ class OCCM(nn.Module):
         
     def forward(self, x):
         x = self.frontend.extract_feat(x)
+        
+        # # normalize x to [0,1]
+        # x_norm = x - x.min()
+        # x_norm = x_norm / x_norm.max()
+        # x = x_norm
+        
         x = x.unsqueeze(1)
         senet34_output = self.senet34_branch(x)
         lcnn_output = self.lcnn_branch(x)

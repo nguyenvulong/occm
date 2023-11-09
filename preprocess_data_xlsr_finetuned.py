@@ -20,14 +20,15 @@ from audio_preprocess.audio_preprocess.denoise import DeNoise
 class PFDataset(Dataset):
     def __init__(self, protocol_file, dataset_dir):
         """
-        Protocol files
-            eval-package/keys/DF/CM/trial_metadata.txt
+        Protocol file for LA train
+            /datab/Dataset/ASVspoof/LA/ASVspoof_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt
+            Example
+            LA_0079 LA_T_1138215 - - bonafide
         
-        Example of each protocol file
-            TEF2 DF_E_2000013 low_m4a vcc2020 Task1-team20 spoof notrim eval neural_vocoder_nonautoregressive Task1 team20 FF E
-            TGF1 DF_E_2000024 mp3m4a vcc2020 Task2-team12 spoof notrim eval traditional_vocoder Task2 team12 FF G
+        Protocol files for DF eval
+            eval-package/keys/DF/CM/trial_metadata.txt
+            Example
             LA_0043 DF_E_2000026 mp3m4a asvspoof A09 spoof notrim eval traditional_vocoder - - - -
-            LA_0021 DF_E_2000027 mp3m4a asvspoof A12 spoof notrim eval neural_vocoder_autoregressive - - - -
 
 
         Args:
@@ -50,7 +51,7 @@ class PFDataset(Dataset):
                 line = line.strip()
                 line = line.split(" ")
                 self.file_list.append(line[1])
-                self.label_list.append(line[5])
+                self.label_list.append(line[4])
                 
         # Caching the indices of each label for quick access
         self.spoof_indices = [i for i, label in enumerate(self.label_list) if label == 'spoof']

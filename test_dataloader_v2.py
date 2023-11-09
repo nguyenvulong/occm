@@ -4,6 +4,8 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 from torch.nn import DataParallel
 from torch.utils.data import DataLoader, random_split
@@ -11,24 +13,26 @@ from preprocess_data_xlsr_finetuned import PFDataset
 from sklearn.utils.class_weight import compute_class_weight
 
 from models.lcnn import *
-from models.cnn import *
 from models.senet import *
+from models.xlsr import *
+
+from losses.custom_loss import compactness_loss, descriptiveness_loss
 
 # Train and Evaluate
 
 # Arguments
 print("Arguments...")
 parser = argparse.ArgumentParser(description='Train a model on a dataset')
-parser.add_argument('--train_dataset_dir', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof2019_LA_train/flac",
+parser.add_argument('--train_dataset_dir', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof2019_LA_train/flac",
                     help='Path to the dataset directory')
-parser.add_argument('--test_dataset_dir', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof2019_LA_eval/flac",
+parser.add_argument('--test_dataset_dir', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof2019_LA_eval/flac",
                     help='Path to the test dataset directory')
 parser.add_argument('--model', type=str, default="ssl_resnet34")
 
 # in case of finetuned, dataset_dir is the raw audio file directory instead of the extracted feature directory
 parser.add_argument('--finetuned', action='store_true', default=False)
-parser.add_argument('--train_protocol_file', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt")
-parser.add_argument('--test_protocol_file', type=str, default="/data/Dataset/ASVspoof/LA/ASVspoof_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt")
+parser.add_argument('--train_protocol_file', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt")
+parser.add_argument('--test_protocol_file', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt")
 args = parser.parse_args()
 
 
@@ -43,15 +47,12 @@ print(f"test_protocol_file = {args.test_protocol_file}")
 print("*************************************************")
 
 # Define the collate function
-if args.finetuned:
-    train_dataset = PFDataset(args.train_protocol_file, dataset_dir=args.train_dataset_dir)
-    test_dataset = PFDataset(args.test_protocol_file, dataset_dir=args.test_dataset_dir)
-else:
-    train_dataset = PFDataset(dataset_dir=args.train_dataset_dir, extract_func=args.extract_func)
-    test_dataset = PFDataset(dataset_dir=args.test_dataset_dir, extract_func=args.extract_func)
+
+train_dataset = PFDataset(args.train_protocol_file, dataset_dir=args.train_dataset_dir)
+test_dataset = PFDataset(args.test_protocol_file, dataset_dir=args.test_dataset_dir)
 
 # Create dataloaders for training and validation
-batch_size = 8
+batch_size = 1
 
 print("Creating dataloaders...")
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=train_dataset.collate_fn)
@@ -60,44 +61,22 @@ test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
 print("Instantiating model...")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if args.model == "lcnn_net":
-    model = lcnn_net(asoftmax=False).to(device)
-elif args.model == "lcnn_net_asoftmax":
-    model = lcnn_net(asoftmax=True).to(device)
-elif args.model == "cnn_net":
-    model = cnn_net().to(device)
-elif args.model == "cnn_net_with_attention":
-    model = cnn_net_with_attention().to(device)
-elif args.model == "se_resnet12":
-    model = se_resnet12().to(device)
-elif args.model == "se_resnet34":
-    model = se_resnet34().to(device)
-elif args.model == "total_cnn_net":
-    model = total_cnn_net(device).to(device)
-elif args.model == "ssl_resnet34":
-    model = ssl_resnet34(device).to(device)
 
-# model.frontend.requires_grad = False
+ssl = SSLModel(device)
+senet34 = se_resnet34()
+lcnn = lcnn_net()
 
-# for name, param in model.named_parameters():
-#     if param.requires_grad:
-#         print (name)
-model = DataParallel(model)
+optimizer = optim.Adam(list(ssl.parameters()) + list(senet34.parameters()) + list(lcnn.parameters()), lr=0.0001)
+# model = DataParallel(model)
+
+# Define the loss functions
+# Descriptiveness loss is CrossEntropyLoss
+# Compactness loss is mahalanobis distance
+
+# criterion_descriptiveness = descriptiveness_loss()
+# criterion_compactness = compactness_loss()
 
 
-# Class weights
-# print(f"Balanced class weights for train dataset: {args.train_dataset_dir}")
-# train_labels = []
-# for _, label in train_dataset:
-#     train_labels.append(label)
-# print("test_labels: ", np.unique(train_labels))
-# weights = compute_class_weight(class_weight='balanced', classes=np.unique(train_labels), y=np.array(train_labels))
-# print("weights: ", weights)
-# weights = torch.tensor(weights,dtype=torch.float).to(device)
-
-# Define the loss function and optimizer
-# criterion = nn.CrossEntropyLoss(weight=weights)
-criterion = nn.CrossEntropyLoss()
 # Also consider criterion = nn.BCEWithLogitsLoss()
 # Note that nn.CrosEntropyLoss() expects raw logits from the last layer 
 # and target labels are class indices
@@ -105,17 +84,15 @@ criterion = nn.CrossEntropyLoss()
 # so it expects raw logits from the last layer,    
 # and target labels are class probabilities
 
-if args.model == "lcnn_net_asoftmax":
-    criterion = AngleLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+# if args.model == "lcnn_net_asoftmax":
+#     criterion = AngleLoss()
 
-# Instantiate the LR scheduler
-# scheduler = StepLR(optimizer, step_size=1, gamma=0.5)  # Adjust the step_size and gamma as needed
+
 
 # Number of epochs
 num_epochs = 100
 
-print("Starting training...")
+print("Training starts...")
 # Training loop
 best_val_acc = 0.0
 best_test_acc = 0.0
@@ -123,7 +100,10 @@ for epoch in range(num_epochs):
     print(f"Epoch {epoch + 1}\n-------------------------------")
 
     # Training phase
-    model.train()  # Set the model to training mode
+    ssl.eval()
+    senet34.train()
+    lcnn.train()
+    
     running_loss = 0.0
     correct_train = 0
     total_train = 0
@@ -139,11 +119,12 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
 
         # Forward pass
-        outputs = model(inputs)
-        # print(f"outputs.shape = {outputs.shape}")
-        print("outputs: ", outputs)
+        outputs_ssl = ssl(inputs)
+        outputs_senet34 = senet34(outputs_ssl)
+        outputs_lcnn = lcnn(outputs_ssl)
+        
         # Calculate the loss
-        loss = criterion(outputs, labels)
+        loss = compactness_loss(outputs_senet34) + descriptiveness_loss(outputs_lcnn, labels)
         
         # Backward pass
         loss.backward()

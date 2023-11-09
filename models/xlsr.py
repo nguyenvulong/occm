@@ -23,7 +23,7 @@ __email__ = "tak@eurecom.fr"
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 
 class SSLModel(nn.Module):
-    def __init__(self,device):
+    def __init__(self, device):
         super(SSLModel, self).__init__()
         
         cp_path = os.path.join(BASE_DIR,'/datac/longnv/SSL_Anti-spoofing/pretrained/xlsr2_300m.pt')
