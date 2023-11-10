@@ -27,6 +27,9 @@ def compactness_loss(batch_embeddings):
     # Define the pairs you want to calculate the Mahalanobis distance for
     pairs = [(0, 1), (0, 2), (0, 3), (2, 1), (2, 3)] 
 
+    # Get the embeddings of the pairs
+    batch_embeddings = torch.stack([batch_embeddings[i] for i, j in pairs])
+    print(f"batch_embeddings = {batch_embeddings.shape}")
     # Compute the sample mean
     mean_embedding = torch.mean(batch_embeddings, dim=0)
 
@@ -45,7 +48,22 @@ def compactness_loss(batch_embeddings):
 
     return total_mahalanobis_distance
 
+def euclidean_distance_loss(batch_embeddings):
+    # Initialize the loss to 0
+    loss = 0.0
+    pairs = [(0, 1), (0, 2), (0, 3), (2, 1), (2, 3)]
 
+    # Calculate the Euclidean distance for each pair and add to the loss
+    for i, j in pairs:
+        # Compute the L2 distance between the two embeddings
+        distance = F.pairwise_distance(batch_embeddings[i].unsqueeze(0), batch_embeddings[j].unsqueeze(0), p=2)
+        # Add the distance to the total loss
+        loss += distance
+    
+    # Optionally, you can average the loss over the number of pairs if needed
+    loss = loss / len(pairs)
+
+    return loss
 def descriptiveness_loss(batch_embeddings, labels):
     """
     Descriptiveness loss.
@@ -63,5 +81,8 @@ def descriptiveness_loss(batch_embeddings, labels):
     """
     # Calculate the cross entropy loss for each pair of samples
     
-    loss = torch.sum(F.cross_entropy(batch_embeddings, labels, reduction='none'))
-    return loss
+    # loss = torch.sum(F.cross_entropy(batch_embeddings, labels, reduction='none'))
+    # calculate the cross entropy loss of the first sample
+    loss_1 = F.cross_entropy(batch_embeddings[0].unsqueeze(0), labels[0].unsqueeze(0), reduction='none')
+    loss_2 = F.cross_entropy(batch_embeddings[4].unsqueeze(0), labels[4].unsqueeze(0), reduction='none')
+    return loss_1 + loss_2

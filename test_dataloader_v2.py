@@ -16,7 +16,7 @@ from models.lcnn import *
 from models.senet import *
 from models.xlsr import *
 
-from losses.custom_loss import compactness_loss, descriptiveness_loss
+from losses.custom_loss import compactness_loss, descriptiveness_loss, euclidean_distance_loss
 
 # Train and Evaluate
 
@@ -113,10 +113,12 @@ for epoch in range(num_epochs):
         outputs_lcnn = lcnn(outputs_ssl) # torch.Size([8, 2])
         
         # Calculate the losses
-        c_loss = compactness_loss(outputs_senet34)
+        c_loss = euclidean_distance_loss(outputs_senet34)
         d_loss = descriptiveness_loss(outputs_lcnn, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])
         
         loss = c_loss + d_loss
+        # loss = d_loss
+        # print(f"d_loss = {d_loss}")
         print(f"c_loss = {c_loss}, d_loss = {d_loss}, loss = {loss}")
         loss.backward()
         optimizer.step()
@@ -124,7 +126,7 @@ for epoch in range(num_epochs):
         # Calculate training accuracy
         # outputs -> outputs[0] in case of AngleLoss
         if args.model == "lcnn_net_asoftmax":
-            _, predicted = torch.max(outputs[0].data, 1)
+            _, predicted = torch.max(outputs_lcnn[0].data, 1)
         else:
             # print(f"outputs_lcnn = {outputs_lcnn}")
             _, predicted = torch.max(outputs_lcnn.data, 1)
@@ -133,9 +135,19 @@ for epoch in range(num_epochs):
 
         # Print statistics
         running_loss += loss.item()
-        if i % 20 == 19:
+        if i % 100 == 99:
             print(f"[{epoch + 1}, {i + 1}] Train Loss: {running_loss / (i+1):.3f}, \
                                            Train Acc: {(correct_train / total_train) * 100:.2f}")
+        # write the loss to a file
+        with open("loss.txt", "a") as f:
+            f.write(f"epoch = {epoch}, i = {i}, loss = {loss}\n")
+    # save the models after each epoch
+    print("Saving the models...")
+    torch.save(ssl.module.state_dict(), "ssl_{epoch}.pt")
+    torch.save(senet34.module.state_dict(), "senet34_{epoch}.pt")
+    torch.save(lcnn.module.state_dict(), "lcnn_{epoch}.pt")
+ 
+    
     
     # # Validation phase
     # model.eval()  # Set the model to evaluation mode
