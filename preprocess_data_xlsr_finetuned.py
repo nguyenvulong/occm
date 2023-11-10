@@ -3,6 +3,7 @@ import torch
 import librosa
 import random
 
+import numpy as np
 import torch.nn.functional as F
 from torchattacks import PGD
 from torch.utils.data import Dataset
@@ -135,21 +136,27 @@ class PFDataset(Dataset):
         # Get a list of files to be used
         file_assignments = self._get_files(idx)
         
-        # Generate two more bonafide files using denoising techniques
-        bona3 = self._denoiser.process(file_assignments['bona1'])
-        bona4 = self._denoiser.process(file_assignments['bona2'])
-        
         # Finalize the list of files to be used
-        file_assignments['bona3'] = bona3
-        file_assignments['bona4'] = bona4
+        # bona3 and bona4 are the same as bona1 and bona2
+        # but later on, we will denoise bona1 and bona2
+        # to create bona3 and bona4
+        file_assignments['bona3'] = file_assignments['bona1']
+        file_assignments['bona4'] = file_assignments['bona2']
         
+        # print(f"file_assignments = {sorted(file_assignments)}")
         # Get features and labels from the files
         # And stack them into tensors
         features = []
         labels = []
-        for key, audio_file in file_assignments.items():
+        max_length = 0
+        # ['bona1', 'bona2', 'bona3', 'bona4', 'spoof1', 'spoof2', 'spoof3', 'spoof4']
+        for key, audio_file in sorted(file_assignments.items()):
+            # print(f"label = {key}, audio_file = {audio_file}")
             file_path = os.path.join(self.dataset_dir, audio_file + ".flac")
             feature, _ = librosa.load(file_path, sr=None)
+            
+            if key == "bona3" or key == "bona4":
+                feature = self._denoise(feature)
             max_length = max(max_length, feature.shape[0])
                        
             # Convert label "spoof" = 1 and "bonafide" = 0
@@ -157,25 +164,23 @@ class PFDataset(Dataset):
            
             features.append(feature)
             labels.append(label)
-       
-        features = torch.tensor(features)
-        labels = torch.tensor(labels)
-        
-        # # Pad the features to have the same length
-        # features_padded = []
-        # for feature in features:
-        #     # You might want to specify the type of padding, e.g., zero padding
-        #     feature_padded = np.pad(feature, (0, max_length - len(feature)), mode='constant')
-        #     features_padded.append(feature_padded)
+                 
+        # Pad the features to have the same length
+        features_padded = []
+        for feature in features:
+            # You might want to specify the type of padding, e.g., zero padding
+            feature_padded = np.pad(feature, (0, max_length - len(feature)), mode='constant')
+            features_padded.append(feature_padded)
             
+        features = np.array(features_padded)
+        labels = np.array(labels)
         # Convert the list of features and labels to tensors
         feature_tensors = torch.tensor(features, dtype=torch.float32)
         label_tensors = torch.tensor(labels, dtype=torch.int64)
-        # Stack the tensors to create a batched tensor
-        stacked_feature_tensors = torch.stack(feature_tensors)
-        stacked_label_tensors = torch.stack(label_tensors)
-
-        return stacked_feature_tensors, stacked_label_tensors
+        # print(f"feature_tensors.shape = {feature_tensors.shape}")
+        # print(f"label_tensors.shape = {label_tensors.shape}")
+        
+        return feature_tensors, label_tensors
 
     def collate_fn(self, batch):
         """pad the time series 1D"""

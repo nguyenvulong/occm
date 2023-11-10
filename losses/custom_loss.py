@@ -6,7 +6,17 @@ def compactness_loss(batch_embeddings):
     Compactness loss.
     Calculates the Mahalanobis distance between each pair of samples and sums them up.
     Input:
-        embeddings: tensor of shape (4, 128), where 4 is the number of samples and 128 is the embedding dimension
+        embeddings: tensor of shape (8, 128), where 8 is the number of samples and 128 is the embedding dimension
+    Process:
+        only use the first 4 samples (0, 1, 2, 3) to calculate the Mahalanobis distance
+        they are bona1, bona2, bona3 and bona4
+        calculate the Mahalanobis distance between the following pairs
+            bona1 and bona2
+            bona1 and bona3
+            bona1 and bona4
+            bona3 and bona2
+            bona3 and bona4
+            
     Output:
         loss: scalar tensor representing the Mahalanobis distance loss
     """
@@ -15,7 +25,7 @@ def compactness_loss(batch_embeddings):
     # batch_embeddings = torch.rand(4, 128)
 
     # Define the pairs you want to calculate the Mahalanobis distance for
-    pairs = [(0, 1), (0, 2), (1, 2), (1, 3)]
+    pairs = [(0, 1), (0, 2), (0, 3), (2, 1), (2, 3)] 
 
     # Compute the sample mean
     mean_embedding = torch.mean(batch_embeddings, dim=0)
@@ -42,15 +52,16 @@ def descriptiveness_loss(batch_embeddings, labels):
     Calculates the sum of cross entropy loss of 4 pairs of samples.
     
     Inputs:
-        batch_embeddings: tensor of shape (4, 2), where "4" is the number of samples and "2" represents "bona fide" or "spoof" class
-        labels: tensor of shape (4,), where each element is either 0 or 1 representing the label of the pair
+        batch_embeddings: tensor of shape (8, 2), where "8" is the number of samples and "2" represents "bona fide" or "spoof" class
+                          the samples are: bona1, bona2, bona3, bona4, spoof1, spoof2, spoof3, spoof4
+        labels: tensor of shape (8,), where each element is either 0 or 1 representing the label of the sample
   
+    Process:
+        calculate the cross entropy loss of 8 samples with their corresponding labels
     Output:
-        loss: sum of 4 scalar tensors representing the total cross entropy loss
+        loss: sum the cross entropy loss of all 8 samples
     """
     # Calculate the cross entropy loss for each pair of samples
-    loss = F.cross_entropy(batch_embeddings, labels)
-
-    # Sum up the losses
-    batch_loss = torch.sum(loss)
-    return batch_loss
+    
+    loss = torch.sum(F.cross_entropy(batch_embeddings, labels, reduction='none'))
+    return loss

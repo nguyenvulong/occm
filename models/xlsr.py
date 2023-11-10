@@ -47,6 +47,9 @@ class SSLModel(nn.Module):
         # print(emb.shape)
         return emb
     
+    def forward(self, input_data):
+        emb = self.extract_feat(input_data)
+        return emb
     
 # Test the model in main function
 

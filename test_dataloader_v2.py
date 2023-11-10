@@ -55,7 +55,9 @@ test_dataset = PFDataset(args.test_protocol_file, dataset_dir=args.test_dataset_
 batch_size = 1
 
 print("Creating dataloaders...")
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=train_dataset.collate_fn)
+# train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=train_dataset.collate_fn)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+
 test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=test_dataset.collate_fn)
 
 print("Instantiating model...")
@@ -63,26 +65,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 ssl = SSLModel(device)
-senet34 = se_resnet34()
-lcnn = lcnn_net()
+senet34 = se_resnet34().to(device)
+lcnn = lcnn_net(asoftmax=False).to(device)
 
 optimizer = optim.Adam(list(ssl.parameters()) + list(senet34.parameters()) + list(lcnn.parameters()), lr=0.0001)
 # model = DataParallel(model)
 
-# Define the loss functions
-# Descriptiveness loss is CrossEntropyLoss
-# Compactness loss is mahalanobis distance
-
-# criterion_descriptiveness = descriptiveness_loss()
-# criterion_compactness = compactness_loss()
-
-
-# Also consider criterion = nn.BCEWithLogitsLoss()
-# Note that nn.CrosEntropyLoss() expects raw logits from the last layer 
-# and target labels are class indices
-# while nn.BCEWithLogitsLoss() combines a Sigmoid layer and the BCELoss in one single class,
-# so it expects raw logits from the last layer,    
-# and target labels are class probabilities
+ssl = DataParallel(ssl)
+senet34 = DataParallel(senet34)
+lcnn = DataParallel(lcnn)
 
 # if args.model == "lcnn_net_asoftmax":
 #     criterion = AngleLoss()
@@ -109,27 +100,25 @@ for epoch in range(num_epochs):
     total_train = 0
 
     for i, data in enumerate(train_dataloader, 0):
-        inputs, labels = data[0].to(device), data[1].to(device)
-        print("labels: ", labels)
-        # print(f"inputs.shape = {inputs.shape}")
-
-        if not args.finetuned:
-            inputs = inputs.unsqueeze(1)  # Add channel dimension
-        inputs = inputs.to(torch.float32)
+        inputs, labels = data[0].to(device), data[1].to(device) # torch.Size([1, 8, 71648]), torch.Size([1, 8])
+        # print(f"inputs.shape = {inputs.shape}, labels.shape = {labels.shape}")
+        inputs = inputs.squeeze(0) # torch.Size([8, 81204])
         optimizer.zero_grad()
 
         # Forward pass
-        outputs_ssl = ssl(inputs)
-        outputs_senet34 = senet34(outputs_ssl)
-        outputs_lcnn = lcnn(outputs_ssl)
+        outputs_ssl = ssl(inputs) # torch.Size([8, 191, 1024])
+        outputs_ssl = outputs_ssl.unsqueeze(1) # torch.Size([8, 1, 191, 1024])
         
-        # Calculate the loss
-        loss = compactness_loss(outputs_senet34) + descriptiveness_loss(outputs_lcnn, labels)
+        outputs_senet34 = senet34(outputs_ssl) # torch.Size([8, 128])
+        outputs_lcnn = lcnn(outputs_ssl) # torch.Size([8, 2])
         
-        # Backward pass
+        # Calculate the losses
+        c_loss = compactness_loss(outputs_senet34)
+        d_loss = descriptiveness_loss(outputs_lcnn, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])
+        
+        loss = c_loss + d_loss
+        print(f"c_loss = {c_loss}, d_loss = {d_loss}, loss = {loss}")
         loss.backward()
-
-        # Update the model parameters
         optimizer.step()
 
         # Calculate training accuracy
@@ -137,7 +126,8 @@ for epoch in range(num_epochs):
         if args.model == "lcnn_net_asoftmax":
             _, predicted = torch.max(outputs[0].data, 1)
         else:
-            _, predicted = torch.max(outputs.data, 1)
+            # print(f"outputs_lcnn = {outputs_lcnn}")
+            _, predicted = torch.max(outputs_lcnn.data, 1)
         total_train += labels.size(0)
         correct_train += (predicted == labels).sum().item()
 
@@ -146,52 +136,50 @@ for epoch in range(num_epochs):
         if i % 20 == 19:
             print(f"[{epoch + 1}, {i + 1}] Train Loss: {running_loss / (i+1):.3f}, \
                                            Train Acc: {(correct_train / total_train) * 100:.2f}")
-    # Step LR scheduler
-    # print("LR scheduled to {:.6f}".format(scheduler.get_lr()[0]))
-    # scheduler.step()
-    # Validation phase
-    model.eval()  # Set the model to evaluation mode
-    correct_val = 0
-    total_val = 0
-    val_loss = 0.0
     
-    correct_test = 0
-    total_test = 0
-    test_loss = 0.0
+    # # Validation phase
+    # model.eval()  # Set the model to evaluation mode
+    # correct_val = 0
+    # total_val = 0
+    # val_loss = 0.0
     
-    print("Evaluating on test set...")
-    with torch.no_grad():
-        for data in test_dataloader:
-            inputs, labels = data[0].to(device), data[1].to(device)
-            inputs = inputs.to(torch.float32)
-            if not args.finetuned:
-                inputs = inputs.unsqueeze(1)  # Add channel dimension
-            # Forward pass
-            outputs = model(inputs)
+    # correct_test = 0
+    # total_test = 0
+    # test_loss = 0.0
+    
+    # print("Evaluating on test set...")
+    # with torch.no_grad():
+    #     for data in test_dataloader:
+    #         inputs, labels = data[0].to(device), data[1].to(device)
+    #         inputs = inputs.to(torch.float32)
+    #         if not args.finetuned:
+    #             inputs = inputs.unsqueeze(1)  # Add channel dimension
+    #         # Forward pass
+    #         outputs = model(inputs)
             
-            # Calculate the loss
-            loss = criterion(outputs, labels)
-            test_loss += loss.item()
+    #         # Calculate the loss
+    #         loss = criterion(outputs, labels)
+    #         test_loss += loss.item()
             
-            # Calculate test accuracy
-            # outputs -> outputs[0] in case of AngleLoss
-            if args.model == "lcnn_net_asoftmax":
-                _, predicted = torch.max(outputs[0].data, 1)
-            else:
-                _, predicted = torch.max(outputs.data, 1)
-            total_test += labels.size(0)
-            correct_test += (predicted == labels).sum().item()
+    #         # Calculate test accuracy
+    #         # outputs -> outputs[0] in case of AngleLoss
+    #         if args.model == "lcnn_net_asoftmax":
+    #             _, predicted = torch.max(outputs[0].data, 1)
+    #         else:
+    #             _, predicted = torch.max(outputs.data, 1)
+    #         total_test += labels.size(0)
+    #         correct_test += (predicted == labels).sum().item()
             
-    # Calculate average training loss and accuracy for the epoch
-    avg_train_loss = running_loss / len(train_dataloader)
-    avg_train_acc = (correct_train / total_train) * 100
+    # # Calculate average training loss and accuracy for the epoch
+    # avg_train_loss = running_loss / len(train_dataloader)
+    # avg_train_acc = (correct_train / total_train) * 100
 
-    print("***********************************************")
-    print(f"Train Loss: {avg_train_loss:.3f}, Train Acc: {avg_train_acc:.2f}")
-    print(f"Test Loss: {test_loss / len(test_dataloader):.3f}, Test Acc: {(correct_test / total_test) * 100:.2f}")
-    test_acc = (correct_test / total_test) * 100
-    # Save the best and the latest model only
-    print("Saving the best model...")
-    if test_acc > best_test_acc:
-        best_test_acc = test_acc
-        torch.save(model.module.state_dict(), args.model  + "_best.pt")
+    # print("***********************************************")
+    # print(f"Train Loss: {avg_train_loss:.3f}, Train Acc: {avg_train_acc:.2f}")
+    # print(f"Test Loss: {test_loss / len(test_dataloader):.3f}, Test Acc: {(correct_test / total_test) * 100:.2f}")
+    # test_acc = (correct_test / total_test) * 100
+    # # Save the best and the latest model only
+    # print("Saving the best model...")
+    # if test_acc > best_test_acc:
+    #     best_test_acc = test_acc
+    #     torch.save(model.module.state_dict(), args.model  + "_best.pt")

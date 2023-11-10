@@ -1,8 +1,12 @@
-
-import torch.nn as nn
-import fairseq
 import os
 import sys
+import fairseq
+import librosa
+import torch
+import torch.nn as nn
+from torch.nn import DataParallel
+
+
 from senet import *
 from lcnn import *
 
@@ -55,8 +59,9 @@ class OCCM(nn.Module):
         # x_norm = x - x.min()
         # x_norm = x_norm / x_norm.max()
         # x = x_norm
-        
+        print(x.shape)
         x = x.unsqueeze(1)
+        print(x.shape)
         senet34_output = self.senet34_branch(x)
         lcnn_output = self.lcnn_branch(x)
         return senet34_output, lcnn_output
@@ -65,9 +70,6 @@ if __name__ == "__main__":
     torch.manual_seed(0)
     model = OCCM("cuda")
     audio_file = "/datac/longnv/audio_samples/ADD2023_T2_T_00000000.wav"
-    import librosa
-    import torch
-    from torch.nn import DataParallel
     # model = DataParallel(model)
     model.eval()
     audio_data, _ = librosa.load(audio_file, sr=None)
