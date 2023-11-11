@@ -91,7 +91,7 @@ for epoch in range(num_epochs):
     print(f"Epoch {epoch + 1}\n-------------------------------")
 
     # Training phase
-    ssl.eval()
+    ssl.train()
     senet34.train()
     lcnn.train()
     
@@ -114,12 +114,10 @@ for epoch in range(num_epochs):
         
         # Calculate the losses
         c_loss = euclidean_distance_loss(outputs_senet34)
-        d_loss = descriptiveness_loss(outputs_lcnn, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])
-        
+        d_loss = descriptiveness_loss(outputs_lcnn, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])        
         loss = c_loss + d_loss
-        # loss = d_loss
-        # print(f"d_loss = {d_loss}")
-        print(f"c_loss = {c_loss}, d_loss = {d_loss}, loss = {loss}")
+
+        print(f"c_loss = {float(c_loss)}, d_loss = {float(d_loss)}, loss = {float(loss)}")
         loss.backward()
         optimizer.step()
 
@@ -128,7 +126,6 @@ for epoch in range(num_epochs):
         if args.model == "lcnn_net_asoftmax":
             _, predicted = torch.max(outputs_lcnn[0].data, 1)
         else:
-            # print(f"outputs_lcnn = {outputs_lcnn}")
             _, predicted = torch.max(outputs_lcnn.data, 1)
         total_train += labels.size(0)
         correct_train += (predicted == labels).sum().item()
@@ -140,12 +137,12 @@ for epoch in range(num_epochs):
                                            Train Acc: {(correct_train / total_train) * 100:.2f}")
         # write the loss to a file
         with open("loss.txt", "a") as f:
-            f.write(f"epoch = {epoch}, i = {i}, loss = {loss}\n")
+            f.write(f"epoch = {epoch}-{i}, loss = {float(loss)}, c_loss = {float(c_loss)}, d_loss = {float(d_loss)} \n")
     # save the models after each epoch
     print("Saving the models...")
-    torch.save(ssl.module.state_dict(), "ssl_{epoch}.pt")
-    torch.save(senet34.module.state_dict(), "senet34_{epoch}.pt")
-    torch.save(lcnn.module.state_dict(), "lcnn_{epoch}.pt")
+    torch.save(ssl.module.state_dict(), f"ssl_{epoch}.pt")
+    torch.save(senet34.module.state_dict(), f"senet34_{epoch}.pt")
+    torch.save(lcnn.module.state_dict(), f"lcnn_{epoch}.pt")
  
     
     

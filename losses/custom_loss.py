@@ -64,6 +64,9 @@ def euclidean_distance_loss(batch_embeddings):
     loss = loss / len(pairs)
 
     return loss
+
+
+
 def descriptiveness_loss(batch_embeddings, labels):
     """
     Descriptiveness loss.
@@ -79,10 +82,11 @@ def descriptiveness_loss(batch_embeddings, labels):
     Output:
         loss: sum the cross entropy loss of all 8 samples
     """
+    weight = 2
     # Calculate the cross entropy loss for each pair of samples
     
     # loss = torch.sum(F.cross_entropy(batch_embeddings, labels, reduction='none'))
     # calculate the cross entropy loss of the first sample
     loss_1 = F.cross_entropy(batch_embeddings[0].unsqueeze(0), labels[0].unsqueeze(0), reduction='none')
     loss_2 = F.cross_entropy(batch_embeddings[4].unsqueeze(0), labels[4].unsqueeze(0), reduction='none')
-    return loss_1 + loss_2
+    return (weight * loss_1 + loss_2)/3
