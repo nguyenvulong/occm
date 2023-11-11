@@ -9,11 +9,6 @@ from torchattacks import PGD
 from torch.utils.data import Dataset
 from audio_preprocess.audio_preprocess.denoise import DeNoise
 
-# from utils import extract_lfcc, extract_cwt, extract_ssqcwt, extract_bfcc, extract_cqcc, extract_lpc, extract_mfcc, extract_mel
-
-# This version is about synthetic speech detection
-# the code is for wav2vec features with finetuned model
-
 # to be used with dataloader_v2.py
 # input is now a raw audio file
 
