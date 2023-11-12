@@ -90,76 +90,56 @@ class PFDataset(Dataset):
         selected_indices = random.sample(possible_indices, k=number_needed)
         return [self.file_list[idx] for idx in selected_indices]
     
-    def _get_files(self, idx):
-        """Check provided index for 'bonafide' or 'spoof'"""
+    def _get_files_triplet(self, idx):
+        """Return 2 bonafide and 1 spoof
+           if bonafide, find 1 more bonafide and 1 spoof
+           if spoof, find 2 bonafide 
+
+        Args:
+            idx (int): index of the file to be used
+        """
         label = self.label_list[idx]
         if label == 'bonafide':
             bona_files = self._get_random_files(self.bonafide_indices, idx, 1)
-            spoof_files = self._get_random_files(self.spoof_indices, None, 4)
+            spoof_files = self._get_random_files(self.spoof_indices, None, 1)
             return {
                 'bona1': self.file_list[idx],  # The indexed file is bona1
                 'bona2': bona_files[0],        # The additional bonafide file is bona2
-                'spoof1': spoof_files[0],      # The first spoof file
-                'spoof2': spoof_files[1],      # The second spoof file
-                'spoof3': spoof_files[2],      # The third spoof file
-                'spoof4': spoof_files[3]       # The fourth spoof file
+                'spoof1': spoof_files[0]       # The first spoof file spoof1
             }
         elif label == 'spoof':
             bona_files = self._get_random_files(self.bonafide_indices, None, 2)
-            spoof_files = self._get_random_files(self.spoof_indices, idx, 3)
             return {
                 'spoof1': self.file_list[idx],  # The indexed file is spoof1
-                'spoof2': spoof_files[0],      # The first additional spoof file
-                'spoof3': spoof_files[1],      # The second additional spoof file
-                'spoof4': spoof_files[2],      # The third additional spoof file
-                'bona1': bona_files[0],        # The first bonafide file
-                'bona2': bona_files[1]         # The second bonafide file
+                'bona1': bona_files[0],        # The first bonafide file bona1
+                'bona2': bona_files[1],        # The second bonafide file bona2
             }
         else:
             raise ValueError(f"Invalid label at index {idx}")
-
-
     
     def __len__(self):
         return self._length
 
     def __getitem__(self, idx):
         """return feature and label of each audio file in the protocol file
-        """
-        # TODO: how to distribute the samples in each batch
-        
+        """        
         # Get a list of files to be used
-        file_assignments = self._get_files(idx)
-        
-        # Finalize the list of files to be used
-        # bona3 and bona4 are the same as bona1 and bona2
-        # but later on, we will denoise bona1 and bona2
-        # to create bona3 and bona4
-        file_assignments['bona3'] = file_assignments['bona1']
-        file_assignments['bona4'] = file_assignments['bona2']
-        
+        file_assignments = self._get_files_triplet(idx)
         # print(f"file_assignments = {sorted(file_assignments)}")
-        # Get features and labels from the files
-        # And stack them into tensors
+        
         features = []
         labels = []
         max_length = 0
-        # ['bona1', 'bona2', 'bona3', 'bona4', 'spoof1', 'spoof2', 'spoof3', 'spoof4']
         for key, audio_file in sorted(file_assignments.items()):
-            # print(f"label = {key}, audio_file = {audio_file}")
             file_path = os.path.join(self.dataset_dir, audio_file + ".flac")
             feature, _ = librosa.load(file_path, sr=None)
-            
-            if key == "bona3" or key == "bona4":
-                feature = self._denoise(feature)
-            max_length = max(max_length, feature.shape[0])
                        
             # Convert label "spoof" = 1 and "bonafide" = 0
             label = 1 if key.startswith("spoof") else 0
-           
+            max_length = max(max_length, len(feature))
             features.append(feature)
             labels.append(label)
-                 
+       
         # Pad the features to have the same length
         features_padded = []
         for feature in features:
@@ -169,6 +149,7 @@ class PFDataset(Dataset):
             
         features = np.array(features_padded)
         labels = np.array(labels)
+        
         # Convert the list of features and labels to tensors
         feature_tensors = torch.tensor(features, dtype=torch.float32)
         label_tensors = torch.tensor(labels, dtype=torch.int64)
@@ -178,18 +159,24 @@ class PFDataset(Dataset):
         return feature_tensors, label_tensors
 
     def collate_fn(self, batch):
-        """pad the time series 1D"""
-        max_width = max(features.shape[0] for features, _ in batch)
-        padded_batch_features = []
-        for features, _ in batch:
-            pad_width = max_width - features.shape[0]
-            padded_features = F.pad(features, (0, pad_width), mode='constant', value=0)
-            padded_batch_features.append(padded_features)
-            
-        labels = torch.tensor([label for _, label in batch])
+        """Create a padded batch for variable length time series"""
+
+        # Separate features and labels and flatten the lists
+        all_features = [feature for features, _ in batch for feature in features]
+        all_labels = [label for _, labels in batch for label in labels]
+
+        # Get the maximum sequence length from all features
+        max_length = max([f.shape[0] for f in all_features])
+
+        # Pad sequences
+        padded_features = torch.stack([F.pad(f, (0, max_length - f.shape[0]), 'constant', 0) for f in all_features])
+        padded_labels = torch.stack(all_labels)  # Assuming labels don't need padding
+
+        # Reshape the padded features to match the batch size and triplets
+        batch_size = len(batch)
+        padded_features = padded_features.view(batch_size, -1, max_length)  # Assuming triplet loss, 3 sequences per idx
         
-        padded_batch_features = torch.stack(padded_batch_features, dim=0)
-        return padded_batch_features, labels
+        return padded_features, padded_labels
 
 
 if __name__== "__main__":
