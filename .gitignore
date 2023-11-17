@@ -33,6 +33,8 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+loss.txt
+scores.txt
 
 # Installer logs
 pip-log.txt
@@ -168,7 +170,6 @@ cython_debug/
 *.pt
 *.pth
 *.log
-*.txt
 
 # Others 
 .ipynb_checkpoints/*
