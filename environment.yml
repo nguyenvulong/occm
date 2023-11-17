@@ -61,7 +61,7 @@ dependencies:
       - einops==0.7.0
       - exceptiongroup==1.1.3
       - executing==2.0.1
-      - fairseq==1.0.0a0+a540213
+      - git+https://github.com/facebookresearch/fairseq.git@a54021305d6b3c4c5959ac9395135f63202db8f1
       - ffmpeg-python==0.2.0
       - filelock==3.9.0
       - flatbuffers==23.5.26
