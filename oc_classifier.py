@@ -16,7 +16,8 @@ from models.senet import *
 from models.xlsr import *
 
 from losses.custom_loss import compactness_loss, descriptiveness_loss, euclidean_distance_loss
-
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # to be used with one-class classifier
 # input is now a raw audio file
@@ -85,6 +86,9 @@ class ASVDataset(Dataset):
         """
         audio_file = self.file_list[idx]
         file_path = os.path.join(self.dataset_dir, audio_file + ".flac")
+        if not os.path.exists(file_path):
+            file_path = os.path.join(self.dataset_dir, audio_file + ".wav")
+
         feature, _ = librosa.load(file_path, sr=None)
         feature_tensors = torch.tensor(feature, dtype=torch.float32)
 
@@ -115,6 +119,14 @@ def create_reference_embedding(extractor, encoder, dataloader, device):
     Returns:
         torch.Tensor: reference embedding
     """
+    # check whether the reference embedding and threshold already exist
+    if os.path.exists("reference_embedding.pt") and os.path.exists("threshold.pt"):
+        print("Loading reference embedding and threshold...")
+        reference_embedding = torch.load("reference_embedding.pt")
+        threshold = torch.load("threshold.pt")
+        return reference_embedding, threshold
+    
+    print("Creating a reference embedding...")    
     extractor.eval()
     encoder.eval()
     total_embeddings = []
@@ -138,6 +150,9 @@ def create_reference_embedding(extractor, encoder, dataloader, device):
         total_distances.append(distance)
     threshold = torch.max(torch.stack(total_distances))
     
+    # save the reference embedding and threshold to a file
+    torch.save(reference_embedding, "reference_embedding.pt")
+    torch.save(threshold, "threshold.pt")
     return reference_embedding, threshold
 
 def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, threshold):
@@ -158,7 +173,7 @@ def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, 
     total_distances = []
     
     with torch.no_grad():
-        for _, (data, target) in enumerate(dataloader):
+        for idx, (data, target) in enumerate(dataloader):
             data = data.to(device)
             target = target.to(device)
             emb = extractor(data)
@@ -166,10 +181,12 @@ def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, 
             emb = encoder(emb)
             total_embeddings.append(emb)
             # total_labels.append(target)
+            print(f"Processing file counts: {idx} ...")
     
     # calculate the distance between the reference embedding and all embeddings
     # write the scores to a file
     # each line contains a score and a label
+    print("Scoring the evaluation set...")
     with open("scores.txt", "w") as f:
         for emb in total_embeddings:
             distance = F.pairwise_distance(reference_embedding, emb, p=2)
@@ -179,20 +196,13 @@ def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, 
             else:
                 f.write(f"{float(distance)}, 0 \n")
 
-    # calculate the EER
-    # total_distances = torch.stack(total_distances)
-    # total_labels = torch.stack(total_labels)
-    # total_labels = total_labels.squeeze(1)
-    # total_labels = total_labels.cpu().numpy()
-    # total_distances = total_distances.squeeze(1)
-    # total_distances = total_distances.cpu().numpy()
-    # fpr, tpr, thresholds = roc_curve(total_labels, total_distances, pos_label=1)
-    # eer = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
-    
-    # return eer
 
 if __name__== "__main__":
     parser = argparse.ArgumentParser(description='One-class classifier')
+    parser.add_argument('--pretrained-ssl', type=str, default="/datac/longnv/occm/ssl_triplet_1.pt",
+                        help='Path to the pretrained weights')
+    parser.add_argument('--pretrained-senet', type=str, default="/datac/longnv/occm/senet34_triplet_1.pt",
+                        help='Path to the pretrained weights')
     parser.add_argument('--protocol_file', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
                         help='Path to the protocol file')
     parser.add_argument('--dataset_dir', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof2019_LA_train/flac",
@@ -209,23 +219,21 @@ if __name__== "__main__":
     senet = se_resnet34().to(device)
 
     # load pretrained weights
-    ssl.load_state_dict(torch.load("/datac/longnv/occm/ssl_4.pt"))
-    senet.load_state_dict(torch.load("/datac/longnv/occm/senet34_4.pt"))
+    ssl.load_state_dict(torch.load(args.pretrained_ssl))
+    senet.load_state_dict(torch.load(args.pretrained_senet))
     senet = DataParallel(senet)
     ssl = DataParallel(ssl)
     print("Pretrained weights loaded")
     
     # create a reference embedding & find a threshold
-    print("Creating a reference embedding...")
     train_dataset = ASVDataset(args.protocol_file, args.dataset_dir)
     train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
     reference_embedding, threshold = create_reference_embedding(ssl, senet, train_dataloader, device)
 
-    print(f"reference_embedding.shape = {reference_embedding.shape}")
-    print(f"threshold = {threshold}")
-
     # score the evaluation set
-    print("Scoring the evaluation set...")
     eval_dataset = ASVDataset(args.eval_protocol_file, args.eval_dataset_dir, eval=True)
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=False, num_workers=0)
     score_eval_set(ssl, senet, eval_dataloader, device, reference_embedding, threshold)
+    
+    print(f"reference_embedding.shape = {reference_embedding.shape}")
+    print(f"threshold = {threshold}")
