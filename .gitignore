@@ -168,7 +168,8 @@ cython_debug/
 *.pt
 *.pth
 *.log
-*.txt
+scores.txt
+loss.txt
 
 # Others 
 .ipynb_checkpoints/*
