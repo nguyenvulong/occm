@@ -230,10 +230,10 @@ if __name__== "__main__":
     train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
     reference_embedding, threshold = create_reference_embedding(ssl, senet, train_dataloader, device)
 
-    print(f"reference_embedding.shape = {reference_embedding.shape}")
-    print(f"threshold = {threshold}")
-
     # score the evaluation set
     eval_dataset = ASVDataset(args.eval_protocol_file, args.eval_dataset_dir, eval=True)
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=False, num_workers=0)
     score_eval_set(ssl, senet, eval_dataloader, device, reference_embedding, threshold)
+    
+    print(f"reference_embedding.shape = {reference_embedding.shape}")
+    print(f"threshold = {threshold}")
