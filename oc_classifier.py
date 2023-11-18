@@ -138,7 +138,7 @@ def create_reference_embedding(extractor, encoder, dataloader, device):
             target = target.to(device)
             emb = extractor(data)
             emb = emb.unsqueeze(1)
-            emb = encoder(emb)
+            emb = encoder(emb)[0]
             total_embeddings.append(emb)
     
     # reference embedding is the mean of all embeddings
@@ -178,7 +178,7 @@ def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, 
             target = target.to(device)
             emb = extractor(data)
             emb = emb.unsqueeze(1)
-            emb = encoder(emb)
+            emb = encoder(emb)[0]
             total_embeddings.append(emb)
             # total_labels.append(target)
             print(f"Processing file counts: {idx} ...")

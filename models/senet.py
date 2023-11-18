@@ -136,9 +136,10 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x).view(x.size()[0], -1)
         # print(x.shape)
-        out = self.embedding(x)
+        com = self.embedding(x)
+        des = self.classifier(x)
         # out = self.classifier(out)
-        return out
+        return com, des
     
         # only use log_softmax if the loss function declared later is NLLLoss
         # otherwise, just return `out` and use CrossEntropyLoss as the loss function
