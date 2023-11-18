@@ -48,6 +48,33 @@ def compactness_loss(batch_embeddings):
 
     return total_mahalanobis_distance
 
+def triplet_loss(batch_embeddings, margin=9.0):
+    """Calculate triplet loss using Euclidean distance.
+    Expects batch_embeddings to be ordered as [bona1, bona2, spoof1].
+    Uses a default margin of 0.2.
+
+    Args:
+        batch_embeddings (tensor): embeddings of bona1, bona2, and spoof1.
+                                   Expected shape [3, embedding_dim].
+        margin (float, optional): Margin by which the distance between the
+                                  negative and positive should be greater.
+                                  Defaults to 9.0.
+
+    Returns:
+        torch.Tensor: Triplet loss.
+    """
+    # Calculate pairwise distances
+    bona2bona = F.pairwise_distance(batch_embeddings[0].unsqueeze(0), 
+                                    batch_embeddings[1].unsqueeze(0), p=2)
+    bona2spoof = F.pairwise_distance(batch_embeddings[0].unsqueeze(0), 
+                                     batch_embeddings[2].unsqueeze(0), p=2)
+    
+    # Calculate triplet loss with margin
+    # Ensure the loss is non-negative
+    loss = F.relu(bona2bona - bona2spoof + margin)  
+    # .mean()  # If multiple triplets, return the mean loss.
+    return loss
+
 def euclidean_distance_loss(batch_embeddings):
     # Initialize the loss to 0
     loss = 0.0
