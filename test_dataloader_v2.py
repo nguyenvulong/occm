@@ -98,12 +98,14 @@ for epoch in range(num_epochs):
     # lcnn.train()
     
     running_loss = 0.0
+    running_closs = 0.0
+    running_dloss = 0.0
     correct_train = 0
     total_train = 0
 
     for i, data in enumerate(train_dataloader, 0):
         inputs, labels = data[0].to(device), data[1].to(device) # torch.Size([1, 8, 71648]), torch.Size([1, 8])
-        print(f"inputs.shape = {inputs.shape}, labels.shape = {labels.shape}")
+        # print(f"inputs.shape = {inputs.shape}, labels.shape = {labels.shape}")
         inputs = inputs.squeeze(0) # torch.Size([12, 81204])
         optimizer.zero_grad()
 
@@ -127,13 +129,13 @@ for epoch in range(num_epochs):
 
         # Print statistics
         running_loss += loss.item()
-        if i % 1000 == 999:
+        running_closs += c_loss.item()
+        running_dloss += d_loss.item()
+        if i % 100 == 99:
             print(f"[{epoch + 1}, {i + 1}] Train Loss: {running_loss / (i+1):.3f}")
             with open("loss.txt", "a") as f:
-                f.write(f"epoch = {epoch}-{i}, loss average = {running_loss / (i+1):.3f}\n")
-        # write the loss to a file
-        with open("loss.txt", "a") as f:
-            f.write(f"epoch = {epoch}-{i}, loss = {running_loss / (i+1):.3f}, c_loss = {float(c_loss)}, d_loss = {float(d_loss)} \n")
+                # write loss, running_closs, running_dloss to a file
+                f.write(f"epoch = {epoch + 1}, i = {i + 1}, loss = {running_loss / (i+1):.3f}, closs = {running_closs / (i+1):.3f}, dloss = {running_dloss / (i+1):.3f} \n")
     # save the models after each epoch
     print("Saving the models...")
     torch.save(ssl.module.state_dict(), f"ssl_vocoded_{epoch}.pt")

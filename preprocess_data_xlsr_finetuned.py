@@ -174,7 +174,7 @@ class PFDataset(Dataset):
         # This idx always points to a bonafide file
         # Get a list of files to be used
         file_assignments = self._get_files(idx)
-        print(f"file_assignments = {sorted(file_assignments)}")
+        # print(f"file_assignments = {sorted(file_assignments)}")
         features = []
         labels = []
         max_length = 0
