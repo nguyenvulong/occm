@@ -1,4 +1,5 @@
 import os
+import wandb
 import argparse
 from collections import defaultdict
 import torch
@@ -81,6 +82,8 @@ senet34 = DataParallel(senet34)
 #     criterion = AngleLoss()
 
 
+# WandB – Initialize a new run
+wandb.init(project="oc_classifier", entity="longnv")
 
 # Number of epochs
 num_epochs = 100
@@ -136,6 +139,7 @@ for epoch in range(num_epochs):
             with open("loss.txt", "a") as f:
                 # write loss, running_closs, running_dloss to a file
                 f.write(f"epoch = {epoch + 1}, i = {i + 1}, loss = {running_loss / (i+1):.3f}, closs = {running_closs / (i+1):.3f}, dloss = {running_dloss / (i+1):.3f} \n")
+            wandb.log({"Epoch": epoch, "Train Loss": running_loss / (i+1), "Train Compactness Loss": running_closs / (i+1), "Train Descriptiveness Loss": running_dloss / (i+1)})
     # save the models after each epoch
     print("Saving the models...")
     torch.save(ssl.module.state_dict(), f"ssl_vocoded_{epoch}.pt")
