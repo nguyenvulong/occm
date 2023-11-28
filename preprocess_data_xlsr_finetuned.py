@@ -2,11 +2,13 @@ import os
 import torch
 import librosa
 import random
+import argparse
 
 import numpy as np
 import torch.nn.functional as F
 from torchattacks import PGD
 from torch.utils.data import Dataset
+from data_utils_SSL import process_Rawboost_feature
 # from audio_preprocess.audio_preprocess.denoise import DeNoise
 
 # to be used with dataloader_v2.py
@@ -55,12 +57,55 @@ class PFDataset(Dataset):
         self._length = len(self.bonafide_indices)
         # self._denoiser = DeNoise()
         self._vocoded_dir = "/datab/Dataset/ASVspoof/LA/ASVspoof2019_LA_vocoded"
-    
-    # def _denoise(self, audio_data):
-    #     """denoise the audio data
-    #     """
-    #     denoiser = DeNoise()
-    #     return denoiser.process(audio_data)
+        self.args = self._rawboost_args()
+        
+    def _rawboost_args(self):
+        """Initialize params for args
+        """
+        parser = argparse.ArgumentParser(description='ASVspoof2021 baseline system')
+        parser.add_argument('--algo', type=int, default=3, 
+                        help='Rawboost algos discriptions. 0: No augmentation 1: LnL_convolutive_noise, 2: ISD_additive_noise, 3: SSI_additive_noise, 4: series algo (1+2+3), \
+                                5: series algo (1+2), 6: series algo (1+3), 7: series algo(2+3), 8: parallel algo(1,2) .default=0]')
+
+        # LnL_convolutive_noise parameters 
+        parser.add_argument('--nBands', type=int, default=5, 
+                        help='number of notch filters.The higher the number of bands, the more aggresive the distortions is.[default=5]')
+        parser.add_argument('--minF', type=int, default=20, 
+                        help='minimum centre frequency [Hz] of notch filter.[default=20] ')
+        parser.add_argument('--maxF', type=int, default=8000, 
+                        help='maximum centre frequency [Hz] (<sr/2)  of notch filter.[default=8000]')
+        parser.add_argument('--minBW', type=int, default=100, 
+                        help='minimum width [Hz] of filter.[default=100] ')
+        parser.add_argument('--maxBW', type=int, default=1000, 
+                        help='maximum width [Hz] of filter.[default=1000] ')
+        parser.add_argument('--minCoeff', type=int, default=10, 
+                        help='minimum filter coefficients. More the filter coefficients more ideal the filter slope.[default=10]')
+        parser.add_argument('--maxCoeff', type=int, default=100, 
+                        help='maximum filter coefficients. More the filter coefficients more ideal the filter slope.[default=100]')
+        parser.add_argument('--minG', type=int, default=0, 
+                        help='minimum gain factor of linear component.[default=0]')
+        parser.add_argument('--maxG', type=int, default=0, 
+                        help='maximum gain factor of linear component.[default=0]')
+        parser.add_argument('--minBiasLinNonLin', type=int, default=5, 
+                        help=' minimum gain difference between linear and non-linear components.[default=5]')
+        parser.add_argument('--maxBiasLinNonLin', type=int, default=20, 
+                        help=' maximum gain difference between linear and non-linear components.[default=20]')
+        parser.add_argument('--N_f', type=int, default=5, 
+                        help='order of the (non-)linearity where N_f=1 refers only to linear components.[default=5]')
+
+        # ISD_additive_noise parameters
+        parser.add_argument('--P', type=int, default=10, 
+                        help='Maximum number of uniformly distributed samples in [%].[defaul=10]')
+        parser.add_argument('--g_sd', type=int, default=2, 
+                        help='gain parameters > 0. [default=2]')
+
+        # SSI_additive_noise parameters
+        parser.add_argument('--SNRmin', type=int, default=10, 
+                        help='Minimum SNR value for coloured additive noise.[defaul=10]')
+        parser.add_argument('--SNRmax', type=int, default=40, 
+                        help='Maximum SNR value for coloured additive noise.[defaul=40]')
+        args = parser.parse_args()
+        return args
         
     def _adversarial_attack(self, audio_data, model):
         """adversarial attack
@@ -116,33 +161,6 @@ class PFDataset(Dataset):
         vocoder_names = ["hifigan", "hn-sinc-nsf-hifi", "hn-sinc-nsf", "melgan", "waveglow"]
         return [f"{vocoder_name}_{bonafide}" for vocoder_name in vocoder_names]
     
-    # def old_get_files_(self, idx):
-    #     """Check provided index for 'bonafide' or 'spoof'"""
-    #     label = self.label_list[idx]
-    #     if label == 'bonafide':
-    #         bona_files = self._get_random_files(self.bonafide_indices, idx, 1)
-    #         spoof_files = self._get_random_files(self.spoof_indices, None, 4)
-    #         return {
-    #             'bona1': self.file_list[idx],  # The indexed file is bona1
-    #             'bona2': bona_files[0],        # The additional bonafide file is bona2
-    #             'spoof1': spoof_files[0],      # The first spoof file
-    #             'spoof2': spoof_files[1],      # The second spoof file
-    #             'spoof3': spoof_files[2],      # The third spoof file
-    #             'spoof4': spoof_files[3]       # The fourth spoof file
-    #         }
-    #     elif label == 'spoof':
-    #         bona_files = self._get_random_files(self.bonafide_indices, None, 2)
-    #         spoof_files = self._get_random_files(self.spoof_indices, idx, 3)
-    #         return {
-    #             'spoof1': self.file_list[idx],  # The indexed file is spoof1
-    #             'spoof2': spoof_files[0],      # The first additional spoof file
-    #             'spoof3': spoof_files[1],      # The second additional spoof file
-    #             'spoof4': spoof_files[2],      # The third additional spoof file
-    #             'bona1': bona_files[0],        # The first bonafide file
-    #             'bona2': bona_files[1]         # The second bonafide file
-    #         }
-    #     else:
-    #         raise ValueError(f"Invalid label at index {idx}")
     def _get_files(self, idx):
         """Get files for training.
         If the idx label is bonafide, then select 5 other files from the bonafide list
@@ -183,7 +201,9 @@ class PFDataset(Dataset):
         # And 1 spoof file
         for key, audio_file in sorted(file_assignments.items()):
             file_path = os.path.join(self.dataset_dir, audio_file + ".flac")
-            feature, _ = librosa.load(file_path, sr=None)
+            feature, sr = librosa.load(file_path, sr=None)
+            # rawboost augmentation, algo=4 is the series of 1, 2, 3
+            feature = process_Rawboost_feature(feature, sr, self.args, 4)
             max_length = max(max_length, feature.shape[0])
                        
             # Convert label "spoof" = 1 and "bonafide" = 0
@@ -198,7 +218,9 @@ class PFDataset(Dataset):
         vocoded_files = self._get_vocoded_files(file_assignments['bona1'])
         for vocoded_file in vocoded_files:
             file_path = os.path.join(self._vocoded_dir, vocoded_file + ".wav")
-            feature, _ = librosa.load(file_path, sr=None)
+            feature, sr = librosa.load(file_path, sr=None)
+            # rawboost augmentation, algo=4 is the series of 1, 2, 3
+            feature = process_Rawboost_feature(feature, sr, self.args, 4) 
             max_length = max(max_length, feature.shape[0])
             label = 1
             features.append(feature)
@@ -217,61 +239,7 @@ class PFDataset(Dataset):
         feature_tensors = torch.tensor(features, dtype=torch.float32)
         label_tensors = torch.tensor(labels, dtype=torch.int64)
         return feature_tensors, label_tensors
-        
-    # def old__getitem__(self, idx):
-    #     """return feature and label of each audio file in the protocol file
-    #     """
-    #     # TODO: how to distribute the samples in each batch
-        
-    #     # Get a list of files to be used
-    #     file_assignments = self._get_files(idx)
-        
-    #     # Finalize the list of files to be used
-    #     # bona3 and bona4 are the same as bona1 and bona2
-    #     # but later on, we will denoise bona1 and bona2
-    #     # to create bona3 and bona4
-    #     file_assignments['bona3'] = file_assignments['bona1']
-    #     file_assignments['bona4'] = file_assignments['bona2']
-        
-    #     # print(f"file_assignments = {sorted(file_assignments)}")
-    #     # Get features and labels from the files
-    #     # And stack them into tensors
-    #     features = []
-    #     labels = []
-    #     max_length = 0
-    #     # ['bona1', 'bona2', 'bona3', 'bona4', 'spoof1', 'spoof2', 'spoof3', 'spoof4']
-    #     for key, audio_file in sorted(file_assignments.items()):
-    #         # print(f"label = {key}, audio_file = {audio_file}")
-    #         file_path = os.path.join(self.dataset_dir, audio_file + ".flac")
-    #         feature, _ = librosa.load(file_path, sr=None)
-            
-    #         if key == "bona3" or key == "bona4":
-    #             feature = self._denoise(feature)
-    #         max_length = max(max_length, feature.shape[0])
-                       
-    #         # Convert label "spoof" = 1 and "bonafide" = 0
-    #         label = 1 if key.startswith("spoof") else 0
-           
-    #         features.append(feature)
-    #         labels.append(label)
-                 
-    #     # Pad the features to have the same length
-    #     features_padded = []
-    #     for feature in features:
-    #         # You might want to specify the type of padding, e.g., zero padding
-    #         feature_padded = np.pad(feature, (0, max_length - len(feature)), mode='constant')
-    #         features_padded.append(feature_padded)
-            
-    #     features = np.array(features_padded)
-    #     labels = np.array(labels)
-    #     # Convert the list of features and labels to tensors
-    #     feature_tensors = torch.tensor(features, dtype=torch.float32)
-    #     label_tensors = torch.tensor(labels, dtype=torch.int64)
-    #     # print(f"feature_tensors.shape = {feature_tensors.shape}")
-    #     # print(f"label_tensors.shape = {label_tensors.shape}")
-        
-    #     return feature_tensors, label_tensors
-
+    
     def collate_fn(self, batch):
         """pad the time series 1D"""
         max_width = max(features.shape[0] for features, _ in batch)

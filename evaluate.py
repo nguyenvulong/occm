@@ -1,5 +1,8 @@
 import argparse
 from sklearn.metrics import confusion_matrix
+import pandas as pd
+import numpy as np
+from evaluate_metrics import compute_eer
 
 def eval_dict(file_path):
     """_summary_
@@ -54,6 +57,42 @@ def load_score_file(file_path):
             score_list.append(score)
     return score_list
 
+def calculate_EER(scores, protocol, metadata):
+    """
+    Step:
+        - protocol file only contains file names
+        - score file contains scores corresponding to the file names in the protocol file
+        - metadata is a dictionary with key = file name, value = label
+        - calculate EER
+    """
+    # pro_columns = ["sid", "utt","phy", "attack", "label"]
+    # eval_protocol_file = pd.read_csv(args.test_protocol_file, sep=" ", header=None)
+    # eval_protocol_file.columns = pro_columns
+
+    # score_file = pd.read_csv(score_file, sep=" ", header=None)
+    # score_file.columns = ["utt", "score"]
+
+    # res = pd.merge(eval_protocol_file, score_file, on="utt")
+    # spoof_scores = res[res["label"] == "spoof"]["score"].values
+    # bonafide_scores = res[res["label"] == "bonafide"]["score"].values
+
+    # spoof_scores is a list of scores corresponding to spoof files
+    spoof_scores = []
+    bonafide_scores = []
+    for file_name in protocol:
+        score = scores[protocol.index(file_name)]
+        label = metadata[file_name]
+        if label == "spoof":
+            spoof_scores.append(score)
+        else:
+            bonafide_scores.append(score)   
+         
+    spoof_scores = np.array(spoof_scores)
+    bonafide_scores = np.array(bonafide_scores)
+    eer, threshold = compute_eer(spoof_scores, bonafide_scores)
+    print(f"EER = {eer*100.0}, threshold = {threshold}")
+
+
 if __name__=="__main__":
     
     # args
@@ -101,3 +140,4 @@ if __name__=="__main__":
     print(f"FP = {cm[0][1]}")
     print(f"FN = {cm[1][0]}")
     
+    calculate_EER(scores, proto, metadata)
