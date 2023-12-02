@@ -170,31 +170,26 @@ def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, 
     extractor.eval()
     encoder.eval()
     total_embeddings = []
-    total_distances = []
-    
-    with torch.no_grad():
-        for idx, (data, target) in enumerate(dataloader):
-            data = data.to(device)
-            target = target.to(device)
-            emb = extractor(data)
-            emb = emb.unsqueeze(1)
-            emb = encoder(emb)[0]
-            total_embeddings.append(emb)
-            # total_labels.append(target)
-            print(f"Processing file counts: {idx} ...")
     
     # calculate the distance between the reference embedding and all embeddings
     # write the scores to a file
     # each line contains a score and a label
     print("Scoring the evaluation set...")
     with open("scores.txt", "w") as f:
-        for emb in total_embeddings:
-            distance = F.pairwise_distance(reference_embedding, emb, p=2)
-            total_distances.append(distance)
-            if float(distance) > threshold:
-                f.write(f"{float(distance)}, 1 \n")
-            else:
-                f.write(f"{float(distance)}, 0 \n")
+        with torch.no_grad():
+            for idx, (data, target) in enumerate(dataloader):
+                data = data.to(device)
+                target = target.to(device)
+                emb = extractor(data)
+                emb = emb.unsqueeze(1)
+                emb = encoder(emb)[0]
+                # total_labels.append(target)
+                print(f"Processing file counts: {idx} ...")
+                distance = F.pairwise_distance(reference_embedding, emb, p=2)
+                if float(distance) > threshold:
+                    f.write(f"{float(distance)}, 1 \n")
+                else:
+                    f.write(f"{float(distance)}, 0 \n")
 
 
 if __name__== "__main__":
