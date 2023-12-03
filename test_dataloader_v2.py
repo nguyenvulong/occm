@@ -10,7 +10,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 from torch.nn import DataParallel
 from torch.utils.data import DataLoader, random_split
-from preprocess_data_xlsr_finetuned import PFDataset
+from oc_training import PFDataset
 from sklearn.utils.class_weight import compute_class_weight
 
 from models.lcnn import *
@@ -24,7 +24,7 @@ from losses.custom_loss import compactness_loss, descriptiveness_loss, euclidean
 # Arguments
 print("Arguments...")
 parser = argparse.ArgumentParser(description='Train a model on a dataset')
-parser.add_argument('--train_dataset_dir', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof2019_LA_train/flac",
+parser.add_argument('--train_dataset_dir', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof2019_LA_train/wav",
                     help='Path to the dataset directory')
 parser.add_argument('--test_dataset_dir', type=str, default="/datab/Dataset/ASVspoof/LA/ASVspoof2019_LA_eval/flac",
                     help='Path to the test dataset directory')
@@ -50,7 +50,7 @@ print("*************************************************")
 # Define the collate function
 
 train_dataset = PFDataset(args.train_protocol_file, dataset_dir=args.train_dataset_dir)
-test_dataset = PFDataset(args.test_protocol_file, dataset_dir=args.test_dataset_dir)
+# test_dataset = PFDataset(args.test_protocol_file, dataset_dir=args.test_dataset_dir)
 
 # Create dataloaders for training and validation
 batch_size = 1
@@ -59,7 +59,7 @@ print("Creating dataloaders...")
 # train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=train_dataset.collate_fn)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
-test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=test_dataset.collate_fn)
+# test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=test_dataset.collate_fn)
 
 print("Instantiating model...")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -124,9 +124,8 @@ for epoch in range(num_epochs):
         # c_loss = euclidean_distance_loss(com)
         c_loss = compactness_loss(com)
         d_loss = descriptiveness_loss(des, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])        
-        loss = c_loss + d_loss
+        loss = 0.1*c_loss + 0.9*d_loss
 
-        print(f"c_loss = {float(c_loss)}, d_loss = {float(d_loss)}, loss = {float(loss)}")
         loss.backward()
         optimizer.step()
 

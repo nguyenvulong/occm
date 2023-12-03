@@ -1,4 +1,5 @@
 eval-package/*
+pretrained/*
 wandb/*
 .vscode/*
 

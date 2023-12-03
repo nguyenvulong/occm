@@ -230,5 +230,4 @@ if __name__== "__main__":
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=False, num_workers=0)
     score_eval_set(ssl, senet, eval_dataloader, device, reference_embedding, threshold)
     
-    print(f"reference_embedding.shape = {reference_embedding.shape}")
     print(f"threshold = {threshold}")
