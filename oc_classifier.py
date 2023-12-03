@@ -156,7 +156,8 @@ def create_reference_embedding(extractor, encoder, dataloader, device):
     return reference_embedding, threshold
 
 def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, threshold):
-    """Score the evaluation set and save the scores to a file
+    """ONE-CLASS APPROACH:
+       Score the evaluation set and save the scores to a file
        These scores will be used to calculate the EER.
     Args:
         extractor, encoder (nn.Module): pretrained models (e.g., XLSR, SE-ResNet34)
@@ -191,6 +192,30 @@ def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, 
                 else:
                     f.write(f"{float(distance)}, 0 \n")
 
+def score_eval_set2(extractor, encoder, dataloader, device):
+    """TWO-CLASS APPROACH:
+       Score the evaluation set and save the scores to a file
+       These scores will be used to calculate the EER.
+    
+    Args:
+        extractor, encoder (nn.Module): pretrained models (e.g., XLSR, SE-ResNet34)
+        dataloader (DataLoader): dataloader for the dataset
+    Returns:
+        float: scores saved to a file
+    """
+        
+    extractor.eval()
+    encoder.eval()
+    with open("scores.txt", "w") as f:
+        with torch.no_grad():
+            for idx, (data, target) in enumerate(dataloader):
+                data = data.to(device)
+                target = target.to(device)
+                emb = extractor(data)
+                emb = emb.unsqueeze(1)
+                emb = encoder(emb)[1][0][0] # descriptiveness component, batch, bona fide
+                print(f"Processing file counts: {idx} ...")
+                f.write(f"{float(emb)}\n")
 
 if __name__== "__main__":
     parser = argparse.ArgumentParser(description='One-class classifier')
@@ -221,13 +246,14 @@ if __name__== "__main__":
     print("Pretrained weights loaded")
     
     # create a reference embedding & find a threshold
-    train_dataset = ASVDataset(args.protocol_file, args.dataset_dir)
-    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
-    reference_embedding, threshold = create_reference_embedding(ssl, senet, train_dataloader, device)
+    # train_dataset = ASVDataset(args.protocol_file, args.dataset_dir)
+    # train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
+    # reference_embedding, threshold = create_reference_embedding(ssl, senet, train_dataloader, device)
 
     # score the evaluation set
     eval_dataset = ASVDataset(args.eval_protocol_file, args.eval_dataset_dir, eval=True)
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=False, num_workers=0)
-    score_eval_set(ssl, senet, eval_dataloader, device, reference_embedding, threshold)
-    
-    print(f"threshold = {threshold}")
+    # score_eval_set(ssl, senet, eval_dataloader, device, reference_embedding, threshold)
+    score_eval_set2(ssl, senet, eval_dataloader, device)
+
+    # print(f"threshold = {threshold}")
