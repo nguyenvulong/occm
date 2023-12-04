@@ -89,8 +89,8 @@ def calculate_EER(scores, protocol, metadata):
          
     spoof_scores = np.array(spoof_scores)
     bonafide_scores = np.array(bonafide_scores)
-    eer, threshold = compute_eer(spoof_scores, bonafide_scores)
-    # eer, threshold = compute_eer(bonafide_scores, spoof_scores)
+    # eer, threshold = compute_eer(spoof_scores, bonafide_scores)
+    eer, threshold = compute_eer(bonafide_scores, spoof_scores)
     print(f"EER = {eer*100.0}, threshold = {threshold}")
 
 

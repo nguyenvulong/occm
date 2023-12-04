@@ -17,6 +17,7 @@ from sklearn.utils.class_weight import compute_class_weight
 from models.lcnn import *
 from models.senet import *
 from models.xlsr import *
+from models.sslassist import *
 
 from losses.custom_loss import compactness_loss, descriptiveness_loss, euclidean_distance_loss
 
@@ -316,18 +317,18 @@ if __name__== "__main__":
     print("Instantiating model...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-    ssl = SSLModel(device)
-    senet34 = se_resnet34().to(device)
+    aasist = AModel(None, device).to(device)
+    # ssl = SSLModel(device)
+    # senet34 = se_resnet34().to(device)
     # lcnn = lcnn_net(asoftmax=False).to(device)
-
+    optimizer = optim.Adam(aasist.parameters(), lr=0.00001)
     # optimizer = optim.Adam(list(ssl.parameters()) + list(senet34.parameters()) + list(lcnn.parameters()), lr=0.0001)
-    optimizer = optim.Adam(list(ssl.parameters()) + list(senet34.parameters()), lr=0.00001, weight_decay=0.0005)
+    # optimizer = optim.Adam(list(ssl.parameters()) + list(senet34.parameters()), lr=0.00001, weight_decay=0.0005)
 
-    # model = DataParallel(model)
+    aasist = DataParallel(aasist)
 
-    ssl = DataParallel(ssl)
-    senet34 = DataParallel(senet34)
+    # ssl = DataParallel(ssl)
+    # senet34 = DataParallel(senet34)
     # lcnn = DataParallel(lcnn)
 
     # if args.model == "lcnn_net_asoftmax":
@@ -348,8 +349,9 @@ if __name__== "__main__":
         print(f"Epoch {epoch + 1}\n-------------------------------")
 
         # Training phase
-        ssl.eval()
-        senet34.train()
+        aasist.train()
+        # ssl.eval()
+        # senet34.train()
         # lcnn.train()
         
         running_loss = 0.0
@@ -365,17 +367,18 @@ if __name__== "__main__":
             optimizer.zero_grad()
 
             # Forward pass
-            outputs_ssl = ssl(inputs) # torch.Size([12, 191, 1024])
-            outputs_ssl = outputs_ssl.unsqueeze(1) # torch.Size([12, 1, 191, 1024])
+            # outputs_ssl = ssl(inputs) # torch.Size([12, 191, 1024])
+            # outputs_ssl = outputs_ssl.unsqueeze(1) # torch.Size([12, 1, 191, 1024])
             
-            outputs_senet34 = senet34(outputs_ssl) # torch.Size([12, 128])
+            # outputs_senet34 = senet34(outputs_ssl) # torch.Size([12, 128])
             # outputs_lcnn = lcnn(outputs_ssl) # torch.Size([8, 2])
+            outputs_senet34 = outputs_aasist = aasist(inputs) # torch.Size([12, 128])
             com = outputs_senet34[0]
             des = outputs_senet34[1]
             # Calculate the losses
             # c_loss = euclidean_distance_loss(com)
-            c_loss = compactness_loss(com)
-            d_loss = descriptiveness_loss(des, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])        
+            c_loss = 0.0*compactness_loss(com)
+            d_loss = 1.0*descriptiveness_loss(des, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])        
             loss = c_loss + d_loss
 
             loss.backward()
@@ -393,6 +396,7 @@ if __name__== "__main__":
                 wandb.log({"Epoch": epoch, "Train Loss": running_loss / (i+1), "Train Compactness Loss": running_closs / (i+1), "Train Descriptiveness Loss": running_dloss / (i+1)})
         # save the models after each epoch
         print("Saving the models...")
-        torch.save(ssl.module.state_dict(), f"ssl_vocoded_{epoch}.pt")
-        torch.save(senet34.module.state_dict(), f"senet34_vocoded_{epoch}.pt")
+        # torch.save(ssl.module.state_dict(), f"ssl_vocoded_{epoch}.pt")
+        # torch.save(senet34.module.state_dict(), f"senet34_vocoded_{epoch}.pt")
+        torch.save(aasist.module.state_dict(), f"aasist_vocoded_{epoch}.pt")
         # torch.save(lcnn.module.state_dict(), f"lcnn_{epoch}.pt")
