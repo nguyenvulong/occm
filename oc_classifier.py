@@ -182,8 +182,7 @@ def create_reference_embedding2(model, dataloader, device):
         for _, (data, target) in enumerate(dataloader):
             data = data.to(device)
             target = target.to(device)
-            emb, out = model(data)
-            print(f"emb.shape = {emb.shape}")
+            emb, out = model(data) # torch.Size([1, 160])
             total_embeddings.append(emb)
     
     # reference embedding is the mean of all embeddings

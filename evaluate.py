@@ -5,7 +5,7 @@ import numpy as np
 from evaluate_metrics import compute_eer
 
 def load_metadata(file_path):
-    """load the metadata file the label list
+    """load the complete metadata file the label list
        example:
             LA_0043 DF_E_2000026 mp3m4a asvspoof A09 spoof notrim eval traditional_vocoder - - - -
 
@@ -19,6 +19,32 @@ def load_metadata(file_path):
             line = line.strip()
             label = line.split(" ")[5]
             labels.append(label)
+    return labels
+
+def load_metadata_from_proto(meta_file_path, proto_file_path):
+    """load the subset of metadata file the label list
+       based on the protocol file
+       the label list order is the same as the protocol file
+       example:
+            LA_0043 DF_E_2000026 mp3m4a asvspoof A09 spoof notrim eval traditional_vocoder - - - -
+
+    Args:
+        file_path (str): file path
+    """
+    labels = []
+    protos = load_proto_file(proto_file_path)
+    # initialize labels with the same length as the protocol file
+    for i in range(len(protos)):
+        labels.append("")
+    with open(meta_file_path, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            line = line.strip()
+            file_name = line.split(" ")[1]
+            label = line.split(" ")[5]
+            if file_name in protos:
+                index = protos.index(file_name)
+                labels[index] = label
     return labels
 
 def eval_dict(file_path):
@@ -141,7 +167,8 @@ if __name__=="__main__":
     # and bonafide otherwise
     
     # create two lists: one for the labels and one for the predictions
-    labels = metadata
+    # labels = metadata
+    labels = load_metadata_from_proto(args.metadata_file, args.protocol_file)
     predictions = []
     for i, file_name in enumerate(proto):
         score = scores[i]
