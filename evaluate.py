@@ -4,6 +4,23 @@ import pandas as pd
 import numpy as np
 from evaluate_metrics import compute_eer
 
+def load_metadata(file_path):
+    """load the metadata file the label list
+       example:
+            LA_0043 DF_E_2000026 mp3m4a asvspoof A09 spoof notrim eval traditional_vocoder - - - -
+
+    Args:
+        file_path (str): file path
+    """
+    labels = []
+    with open(file_path, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            line = line.strip()
+            label = line.split(" ")[5]
+            labels.append(label)
+    return labels
+
 def eval_dict(file_path):
     """_summary_
 
@@ -57,7 +74,7 @@ def load_score_file(file_path):
             score_list.append(score)
     return score_list
 
-def calculate_EER(scores, protocol, metadata):
+def calculate_EER_old(scores, protocol, metadata):
     """
     Step:
         - protocol file only contains file names
@@ -65,18 +82,6 @@ def calculate_EER(scores, protocol, metadata):
         - metadata is a dictionary with key = file name, value = label
         - calculate EER
     """
-    # pro_columns = ["sid", "utt","phy", "attack", "label"]
-    # eval_protocol_file = pd.read_csv(args.test_protocol_file, sep=" ", header=None)
-    # eval_protocol_file.columns = pro_columns
-
-    # score_file = pd.read_csv(score_file, sep=" ", header=None)
-    # score_file.columns = ["utt", "score"]
-
-    # res = pd.merge(eval_protocol_file, score_file, on="utt")
-    # spoof_scores = res[res["label"] == "spoof"]["score"].values
-    # bonafide_scores = res[res["label"] == "bonafide"]["score"].values
-
-    # spoof_scores is a list of scores corresponding to spoof files
     spoof_scores = []
     bonafide_scores = []
     for file_name in protocol:
@@ -89,10 +94,30 @@ def calculate_EER(scores, protocol, metadata):
          
     spoof_scores = np.array(spoof_scores)
     bonafide_scores = np.array(bonafide_scores)
-    # eer, threshold = compute_eer(spoof_scores, bonafide_scores)
-    eer, threshold = compute_eer(bonafide_scores, spoof_scores)
+    eer, threshold = compute_eer(spoof_scores, bonafide_scores)
+    # eer, threshold = compute_eer(bonafide_scores, spoof_scores)
     print(f"EER = {eer*100.0}, threshold = {threshold}")
 
+def calculate_EER(scores, labels):
+    """Calculate EER based on scores and metadata
+    Since they are already sorted, we can just go through the list and calculate the EER
+    without the need of protocol file
+
+    Args:
+        scores (list): scores
+        metadata (list): labels
+    """
+    spoof_scores = []
+    bonafide_scores = []
+    for score, label in zip(scores, labels):
+        if label == "spoof":
+            spoof_scores.append(score)
+        else:
+            bonafide_scores.append(score)
+    spoof_scores = np.array(spoof_scores)
+    bonafide_scores = np.array(bonafide_scores)
+    eer, threshold = compute_eer(spoof_scores, bonafide_scores)
+    print(f"EER = {eer*100.0}, threshold = {threshold}")
 
 if __name__=="__main__":
     
@@ -107,7 +132,8 @@ if __name__=="__main__":
     # load the protocol file, the score file, and the metadata file
     proto = load_proto_file(args.protocol_file)
     scores = load_score_file(args.score_file)
-    metadata = eval_dict(args.metadata_file)
+    # metadata = eval_dict(args.metadata_file)
+    metadata = load_metadata(args.metadata_file)
     
     # for each file in the protocol file, get the score and the label
     # compare the score with the threshold
@@ -115,16 +141,17 @@ if __name__=="__main__":
     # and bonafide otherwise
     
     # create two lists: one for the labels and one for the predictions
-    labels = []
+    labels = metadata
     predictions = []
-    for file_name in proto:
-        score = scores[proto.index(file_name)]
-        label = metadata[file_name]
-        labels.append(label)
+    for i, file_name in enumerate(proto):
+        score = scores[i]
         if score > args.threshold:
+            # predictions.append("bonafide") # use this for 2-class case
             predictions.append("spoof")
+
         else:
             predictions.append("bonafide")
+            # predictions.append("spoof") # use this for 2-class case
 
     # number of bona fide and spoof in labels
     bona_fide = labels.count("bonafide")
@@ -141,4 +168,4 @@ if __name__=="__main__":
     print(f"FP = {cm[0][1]}")
     print(f"FN = {cm[1][0]}")
     
-    calculate_EER(scores, proto, metadata)
+    calculate_EER(scores, labels)

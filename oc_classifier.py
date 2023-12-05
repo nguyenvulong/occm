@@ -14,6 +14,7 @@ from torchattacks import PGD
 from models.lcnn import *
 from models.senet import *
 from models.xlsr import *
+from models.sslassist import *
 
 from losses.custom_loss import compactness_loss, descriptiveness_loss, euclidean_distance_loss
 import warnings
@@ -155,7 +156,53 @@ def create_reference_embedding(extractor, encoder, dataloader, device):
     torch.save(threshold, "threshold.pt")
     return reference_embedding, threshold
 
-def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, threshold):
+def create_reference_embedding2(model, dataloader, device):
+    """Create reference embeddings for one-class classifier SSL-AASIST
+
+    Args:
+        model (nn.Module): pretrained models (e.g., XLSR, SE-ResNet34)
+        dataloader (DataLoader): dataloader for the dataset
+
+    Returns:
+        torch.Tensor: reference embedding
+    """
+    # check whether the reference embedding and threshold already exist
+    if os.path.exists("reference_embedding.pt") and os.path.exists("threshold.pt"):
+        print("Loading reference embedding and threshold...")
+        reference_embedding = torch.load("reference_embedding.pt")
+        threshold = torch.load("threshold.pt")
+        return reference_embedding, threshold
+    
+    print("Creating a reference embedding...")    
+    model.eval()
+    total_embeddings = []
+    total_distances = []
+    
+    with torch.no_grad():
+        for _, (data, target) in enumerate(dataloader):
+            data = data.to(device)
+            target = target.to(device)
+            emb, out = model(data)
+            print(f"emb.shape = {emb.shape}")
+            total_embeddings.append(emb)
+    
+    # reference embedding is the mean of all embeddings
+    reference_embedding = torch.mean(torch.stack(total_embeddings), dim=0)
+    
+    # threshold is the maximum Euclidean distance between the reference embedding and all embeddings
+    for emb in total_embeddings:
+        distance = F.pairwise_distance(reference_embedding, emb, p=2)
+        total_distances.append(distance)
+    threshold = torch.max(torch.stack(total_distances))
+    
+    # save the reference embedding and threshold to a file
+    torch.save(reference_embedding, "reference_embedding.pt")
+    torch.save(threshold, "threshold.pt")
+    return reference_embedding, threshold
+
+
+
+def score_eval_set_1c1(extractor, encoder, dataloader, device, reference_embedding, threshold):
     """ONE-CLASS APPROACH:
        Score the evaluation set and save the scores to a file
        These scores will be used to calculate the EER.
@@ -192,7 +239,32 @@ def score_eval_set(extractor, encoder, dataloader, device, reference_embedding, 
                 else:
                     f.write(f"{float(distance)}, 0 \n")
 
-def score_eval_set2(extractor, encoder, dataloader, device):
+def score_eval_set_1c2(model, dataloader, device, reference_embedding, threshold):
+    """ ONE-CLASS APPROACH with SSL-AASIST
+    
+    """
+    model.eval()
+    total_embeddings = []
+    
+    # calculate the distance between the reference embedding and all embeddings
+    # write the scores to a file
+    # each line contains a score and a label
+    print("Scoring the evaluation set...")
+    with open("scores.txt", "w") as f:
+        with torch.no_grad():
+            for idx, (data, target) in enumerate(dataloader):
+                data = data.to(device)
+                target = target.to(device)
+                emb, out = model(data)
+                print(f"Processing file counts: {idx} ...")
+                distance = F.pairwise_distance(reference_embedding, emb, p=2)
+                if float(distance) > threshold:
+                    f.write(f"{float(distance)}, 1 \n")
+                else:
+                    f.write(f"{float(distance)}, 0 \n")
+
+
+def score_eval_set_2c1(extractor, encoder, dataloader, device):
     """TWO-CLASS APPROACH:
        Score the evaluation set and save the scores to a file
        These scores will be used to calculate the EER.
@@ -217,8 +289,32 @@ def score_eval_set2(extractor, encoder, dataloader, device):
                 print(f"Processing file counts: {idx} ...")
                 f.write(f"{float(emb)}\n")
 
+def score_eval_set_2c2(model, dataloader, device):
+    """TWO-CLASS APPROACH SSL-AASIST:
+       Score the evaluation set and save the scores to a file
+       These scores will be used to calculate the EER.
+
+    Args:
+        model (nn.Module): pretrained models (e.g., ssl-aasist)
+        dataloader (Dataloader): dataloader for the dataset
+    """
+    model.eval()
+    with open("scores.txt", "w") as f:
+        with torch.no_grad():
+            for idx, (data, target) in enumerate(dataloader):
+                data = data.to(device)
+                target = target.to(device)
+                emb, out = model(data)
+                print(f"out = {out}")
+                out = out[0][0]
+                print(f"Processing file counts: {idx} ...")
+                f.write(f"{float(out)}\n")
+
+
 if __name__== "__main__":
     parser = argparse.ArgumentParser(description='One-class classifier')
+    parser.add_argument('--pretrained-sslaasist', type=str, default="/datac/longnv/occm/aasist_vocoded_1.pt",
+                        help='Path to the pretrained weights')
     parser.add_argument('--pretrained-ssl', type=str, default="/datac/longnv/occm/ssl_triplet_1.pt",
                         help='Path to the pretrained weights')
     parser.add_argument('--pretrained-senet', type=str, default="/datac/longnv/occm/senet34_triplet_1.pt",
@@ -233,27 +329,32 @@ if __name__== "__main__":
                         help='Path to the dataset directory')
     args = parser.parse_args()
     
-    # initialize xlsr and lcnn models
+    # initialize models
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    ssl = SSLModel(device)
-    senet = se_resnet34().to(device)
+    aasist = AModel(None, device).to(device)
+    # ssl = SSLModel(device)
+    # senet = se_resnet34().to(device)
 
     # load pretrained weights
-    ssl.load_state_dict(torch.load(args.pretrained_ssl))
-    senet.load_state_dict(torch.load(args.pretrained_senet))
-    senet = DataParallel(senet)
-    ssl = DataParallel(ssl)
+    aasist.load_state_dict(torch.load(args.pretrained_sslaasist))
+    # ssl.load_state_dict(torch.load(args.pretrained_ssl))
+    # senet.load_state_dict(torch.load(args.pretrained_senet))
+    aasist = DataParallel(aasist)
+    # senet = DataParallel(senet)
+    # ssl = DataParallel(ssl)
     print("Pretrained weights loaded")
     
     # create a reference embedding & find a threshold
-    # train_dataset = ASVDataset(args.protocol_file, args.dataset_dir)
-    # train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
+    train_dataset = ASVDataset(args.protocol_file, args.dataset_dir)
+    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
     # reference_embedding, threshold = create_reference_embedding(ssl, senet, train_dataloader, device)
+    reference_embedding, threshold = create_reference_embedding2(aasist, train_dataloader, device)
 
     # score the evaluation set
     eval_dataset = ASVDataset(args.eval_protocol_file, args.eval_dataset_dir, eval=True)
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=False, num_workers=0)
     # score_eval_set(ssl, senet, eval_dataloader, device, reference_embedding, threshold)
-    score_eval_set2(ssl, senet, eval_dataloader, device)
+    score_eval_set_1c2(aasist, eval_dataloader, device, reference_embedding, threshold)
+    # score_eval_set_2c2(aasist, eval_dataloader, device)
 
-    # print(f"threshold = {threshold}")
+    print(f"threshold = {threshold}")
