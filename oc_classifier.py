@@ -192,6 +192,8 @@ def create_reference_embedding2(model, dataloader, device):
     for emb in total_embeddings:
         distance = F.pairwise_distance(reference_embedding, emb, p=2)
         total_distances.append(distance)
+        with open("distances.txt", "a") as f:
+            f.write(f"{float(distance)}\n")
     threshold = torch.max(torch.stack(total_distances))
     
     # save the reference embedding and threshold to a file
