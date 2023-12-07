@@ -1,4 +1,7 @@
 eval-package/*
+pretrained/*
+wandb/*
+.vscode/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -168,7 +171,8 @@ cython_debug/
 *.pt
 *.pth
 *.log
-*.txt
+*scores*.txt
+loss.txt
 
 # Others 
 .ipynb_checkpoints/*
