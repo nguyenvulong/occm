@@ -377,8 +377,8 @@ if __name__== "__main__":
             des = outputs_senet34[1]
             # Calculate the losses
             # c_loss = euclidean_distance_loss(com)
-            c_loss = 0.0*compactness_loss(com)
-            d_loss = 1.0*descriptiveness_loss(des, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])        
+            c_loss = 0.1*compactness_loss(com)
+            d_loss = 0.9*descriptiveness_loss(des, labels.squeeze(0)) # because labels.shape = torch.Size([1, 8])        
             loss = c_loss + d_loss
 
             loss.backward()

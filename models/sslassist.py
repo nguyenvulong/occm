@@ -502,6 +502,7 @@ class AModel(nn.Module):
         self.pool_hT2 = GraphPool(pool_ratios[2], gat_dims[1], 0.3)
         
         self.out_layer = nn.Linear(5 * gat_dims[1], 2)
+        self.emb_layer = nn.Linear(160, 100)
 
     def forward(self, x):
         #-------pre-trained Wav2vec model fine tunning ------------------------##
@@ -588,10 +589,11 @@ class AModel(nn.Module):
         S_max, _ = torch.max(torch.abs(out_S), dim=1)
         S_avg = torch.mean(out_S, dim=1)
         
-        emb = last_hidden = torch.cat(
+        last_hidden = torch.cat(
             [T_max, T_avg, S_max, S_avg, master.squeeze(1)], dim=1)
         
         last_hidden = self.drop(last_hidden)
+        emb = self.emb_layer(last_hidden)
         output = self.out_layer(last_hidden)
         
         return emb, output
