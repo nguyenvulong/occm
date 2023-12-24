@@ -1,16 +1,27 @@
 import random
 from typing import Union
-
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-import fairseq
+
+import fairseq2
+from fairseq2.data.audio import AudioDecoder, WaveformToFbankConverter
+from fairseq2.memory import MemoryBlock
+from fairseq2.nn.padding import get_seqs_and_padding_mask
+from fairseq2.data import Collater
+from pathlib import Path
+from seamless_communication.src.seamless_communication.models.conformer_shaw import load_conformer_shaw_model
 
 
-___author__ = "Hemlata Tak"
-__email__ = "tak@eurecom.fr"
+
+
+
+
+
+___author__ = "Long Nguyen-Vu"
+__email__ = "long@ssu.ac.kr"
 
 ############################
 ## FOR fine-tuned SSL MODEL
@@ -20,33 +31,21 @@ __email__ = "tak@eurecom.fr"
 class SSLModel(nn.Module):
     def __init__(self,device):
         super(SSLModel, self).__init__()
-        
-        cp_path = '/home/longnv/BTS-Encoder-ASVspoof/demo2023/pretrained/xlsr2_300m.pt'   # Change the pre-trained XLSR model path. 
-        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp_path])
-        self.model = model[0]
+        self.dtype = torch.float32
         self.device=device
         self.out_dim = 1024
+        self.model = load_conformer_shaw_model("conformer_shaw", device=device, dtype=self.dtype)
+        self.model.eval()
+
         return
 
-    def extract_feat(self, input_data):
-        
-        # put the model to GPU if it not there
-        # if next(self.model.parameters()).device != input_data.device \
-        #    or next(self.model.parameters()).dtype != input_data.dtype:
-        #     self.model.to(input_data.device, dtype=input_data.dtype)
-        #     self.model.train()
+    def extract_feat(self, seqs):
+        # with torch.inference_mode():
+        with torch.no_grad():
+            seqs, padding_mask = self.model.encoder_frontend(seqs, None)
+            seqs, padding_mask = self.model.encoder(seqs, None)
 
-        
-        if True:
-            # input should be in shape (batch, length)
-            if input_data.ndim == 3:
-                input_tmp = input_data[:, :, 0]
-            else:
-                input_tmp = input_data
-                
-            # [batch, length, dim]
-            emb = self.model(input_tmp, mask=False, features_only=True)['x']
-        return emb
+        return seqs
 
 
 #---------AASIST back-end------------------------#
@@ -505,7 +504,8 @@ class AModel(nn.Module):
 
     def forward(self, x):
         #-------pre-trained Wav2vec model fine tunning ------------------------##
-        x_ssl_feat = self.ssl_model.extract_feat(x.squeeze(-1))
+        # x_ssl_feat = self.ssl_model.extract_feat(x.squeeze(-1))
+        x_ssl_feat = self.ssl_model.extract_feat(x)
         x = self.LL(x_ssl_feat) #(bs,frame_number,feat_out_dim)
         
         # post-processing on front-end features

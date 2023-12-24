@@ -14,16 +14,26 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader, random_split
 from sklearn.utils.class_weight import compute_class_weight
 
-from models.lcnn import *
-from models.senet import *
-from models.xlsr import *
-from models.sslassist import *
+
+import fairseq2
+from fairseq2.data.audio import AudioDecoder, WaveformToFbankConverter
+from fairseq2.memory import MemoryBlock
+from fairseq2.nn.padding import get_seqs_and_padding_mask
+from fairseq2.data import Collater
+from pathlib import Path
+
+
+# from models.lcnn import *
+# from models.senet import *
+# from models.xlsr import *
+# from models.sslassist import *
+from models.w2vassist import *
 
 from losses.custom_loss import compactness_loss, descriptiveness_loss, euclidean_distance_loss
 
 
 import torch.nn.functional as F
-from torchattacks import PGD
+# from torchattacks import PGD
 from torch.utils.data import Dataset
 from data_utils_SSL import process_Rawboost_feature
 
@@ -195,6 +205,30 @@ class PFDataset(Dataset):
             'spoof1': spoof_files[0],      # The first spoof file
         }
     
+    def _preprocess_wav(self, audio_wav_path):
+        # Create a device and dtype 
+        dtype = torch.float32
+        device = torch.device("cuda")
+        audio_decoder = AudioDecoder(dtype=dtype, device=device)
+        fbank_converter = WaveformToFbankConverter(
+            num_mel_bins=80,
+            waveform_scale=2**15,
+            channel_last=True,
+            standardize=True,
+            device=device,
+            dtype=dtype,
+        )
+        collater = Collater(pad_value=1)
+    
+
+        with Path(audio_wav_path).open("rb") as fb:
+            block = MemoryBlock(fb.read())
+        # print("Decoding audio...")
+        decoded_audio = audio_decoder(block)
+        src = collater(fbank_converter(decoded_audio))["fbank"]
+        seqs, padding_mask = get_seqs_and_padding_mask(src)
+        return seqs    
+
     def __len__(self):
         return self._length
 
@@ -216,10 +250,11 @@ class PFDataset(Dataset):
             # file_path = os.path.join(self.dataset_dir, audio_file + ".flac")
             file_path = os.path.join(self.dataset_dir, audio_file + ".wav")
             
-            feature, sr = librosa.load(file_path, sr=None)
+            # feature, sr = librosa.load(file_path, sr=None)
+            feature = self._preprocess_wav(file_path)
             # rawboost augmentation, algo=4 is the series of 1, 2, 3
             # feature = process_Rawboost_feature(feature, sr, self.args, 5)
-            max_length = max(max_length, feature.shape[0])
+            max_length = max(max_length, feature.shape[1])
                        
             # Convert label "spoof" = 1 and "bonafide" = 0
             label = 1 if key.startswith("spoof") else 0
@@ -233,10 +268,12 @@ class PFDataset(Dataset):
         vocoded_files = self._get_vocoded_files(file_assignments['bona1'])
         for vocoded_file in vocoded_files:
             file_path = os.path.join(self._vocoded_dir, vocoded_file + ".wav")
-            feature, sr = librosa.load(file_path, sr=None)
+            # feature, sr = librosa.load(file_path, sr=None)
+            feature = self._preprocess_wav(file_path)
             # rawboost augmentation, algo=4 is the series of 1, 2, 3
             # feature = process_Rawboost_feature(feature, sr, self.args, 5) 
-            max_length = max(max_length, feature.shape[0])
+
+            max_length = max(max_length, feature.shape[1])
             label = 1
             features.append(feature)
             labels.append(label)
@@ -244,16 +281,11 @@ class PFDataset(Dataset):
         # Pad the features to have the same length
         features_padded = []
         for feature in features:
-            # You might want to specify the type of padding, e.g., zero padding
-            feature_padded = np.pad(feature, (0, max_length - len(feature)), mode='constant')
+            feature_padded = F.pad(feature, (0, 0, max_length - feature.size(1), 0))
             features_padded.append(feature_padded)
         
-        # Convert the list of features and labels to tensors
-        features = np.array(features_padded)
-        labels = np.array(labels)
-        feature_tensors = torch.tensor(features, dtype=torch.float32)
-        label_tensors = torch.tensor(labels, dtype=torch.int64)
-        return feature_tensors, label_tensors
+
+        return torch.stack(features_padded), torch.tensor(labels, dtype=torch.int64)
     
     def collate_fn(self, batch):
         """pad the time series 1D"""
@@ -336,7 +368,7 @@ if __name__== "__main__":
 
 
     # WandB – Initialize a new run
-    wandb.init(project="oc_classifier", entity="longnv")
+    wandb.init(project="oc_classifier-w2v", entity="longnv")
 
     # Number of epochs
     num_epochs = 100
@@ -362,16 +394,10 @@ if __name__== "__main__":
 
         for i, data in enumerate(train_dataloader, 0):
             inputs, labels = data[0].to(device), data[1].to(device) # torch.Size([1, 8, 71648]), torch.Size([1, 8])
-            # print(f"inputs.shape = {inputs.shape}, labels.shape = {labels.shape}")
             inputs = inputs.squeeze(0) # torch.Size([12, 81204])
+            inputs = inputs.squeeze(1)
             optimizer.zero_grad()
 
-            # Forward pass
-            # outputs_ssl = ssl(inputs) # torch.Size([12, 191, 1024])
-            # outputs_ssl = outputs_ssl.unsqueeze(1) # torch.Size([12, 1, 191, 1024])
-            
-            # outputs_senet34 = senet34(outputs_ssl) # torch.Size([12, 128])
-            # outputs_lcnn = lcnn(outputs_ssl) # torch.Size([8, 2])
             outputs_senet34 = outputs_aasist = aasist(inputs) # torch.Size([12, 128])
             com = outputs_senet34[0]
             des = outputs_senet34[1]
@@ -398,5 +424,5 @@ if __name__== "__main__":
         print("Saving the models...")
         # torch.save(ssl.module.state_dict(), f"ssl_vocoded_{epoch}.pt")
         # torch.save(senet34.module.state_dict(), f"senet34_vocoded_{epoch}.pt")
-        torch.save(aasist.module.state_dict(), f"aasist_vocoded_{epoch}.pt")
+        torch.save(aasist.module.state_dict(), f"w2v_vocoded_{epoch}.pt")
         # torch.save(lcnn.module.state_dict(), f"lcnn_{epoch}.pt")
