@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 import fairseq
-
+from transformers import AutoModel
 
 ___author__ = "Hemlata Tak"
 __email__ = "tak@eurecom.fr"
@@ -21,9 +21,11 @@ class SSLModel(nn.Module):
     def __init__(self,device):
         super(SSLModel, self).__init__()
         
-        cp_path = '/datac/longnv/SSL_Anti-spoofing/pretrained/xlsr2_300m.pt'   # Change the pre-trained XLSR model path. 
-        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp_path])
-        self.model = model[0]
+        cp_path = '/nfs/datab/longnv/wav2vec2-xls-r-300m-korean.bin'   # Change the pre-trained XLSR model path. 
+        # model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp_path])
+        model = AutoModel.from_pretrained("./")
+        # self.model = model[0]
+        self.model = model
         self.device=device
         self.out_dim = 1024
         return
@@ -45,7 +47,8 @@ class SSLModel(nn.Module):
                 input_tmp = input_data
                 
             # [batch, length, dim]
-            emb = self.model(input_tmp, mask=False, features_only=True)['x']
+            # emb = self.model(input_tmp, mask=False, features_only=True)['x']
+            emb = self.model(input_tmp).last_hidden_state
         return emb
 
 

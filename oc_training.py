@@ -336,7 +336,7 @@ if __name__== "__main__":
 
 
     # WandB – Initialize a new run
-    wandb.init(project="oc_classifier", entity="longnv")
+    wandb.init(project="oc_classifier-kor", entity="longnv")
 
     # Number of epochs
     num_epochs = 100
