@@ -1,0 +1,17 @@
+c634c446d1cf134b4c063ec8a589f8b257a93ac9		branch 'main' of https://github.com/facebookresearch/seamless_communication
+8814dce9f6085bea8daa440ad2cdde4040510b36	not-for-merge	branch 'api_update' of https://github.com/facebookresearch/seamless_communication
+d31095342cea67b83c0649ed4b3a2e3a0d9dd54e	not-for-merge	branch 'cndn-patch-1' of https://github.com/facebookresearch/seamless_communication
+17c9f811f26587294f6b2121f5df40c7c406029d	not-for-merge	branch 'cndn-patch-2' of https://github.com/facebookresearch/seamless_communication
+4a231725036fe9d22e294eb6c9be9c683837bc66	not-for-merge	branch 'cndn-patch-3' of https://github.com/facebookresearch/seamless_communication
+ceada0caffa8527a87067fcac2a2d503ae788da7	not-for-merge	branch 'expressivity_translator' of https://github.com/facebookresearch/seamless_communication
+cee7518bfaa65200df2b0734658044a39d769c2c	not-for-merge	branch 'fix_no_redef_error' of https://github.com/facebookresearch/seamless_communication
+ac6b874c43b5795cdf7421618a044259b177bb65	not-for-merge	branch 'ggml_fp16_model' of https://github.com/facebookresearch/seamless_communication
+1070b609329296bc8e6c25875ad9f87908696bb3	not-for-merge	branch 'header_fix' of https://github.com/facebookresearch/seamless_communication
+37858bc085d67aa8bd6cf8bcfcbcb8b7bed3636d	not-for-merge	branch 'jmp84-patch-1' of https://github.com/facebookresearch/seamless_communication
+cd100954048ed82492281da9bd54e000564ddee2	not-for-merge	branch 'mem' of https://github.com/facebookresearch/seamless_communication
+c8f9a8c0ba265120c74ea0c6cff9d027c2223244	not-for-merge	branch 'ngram' of https://github.com/facebookresearch/seamless_communication
+7608af8895a747a4caaf36384bc3d0b19c2f775d	not-for-merge	branch 'no_alloc' of https://github.com/facebookresearch/seamless_communication
+e779fcf8caf16f7afbe5ae35c4edcdfa4edbf157	not-for-merge	branch 'path_updates' of https://github.com/facebookresearch/seamless_communication
+79546ff4e6b89ff89e452f4edcb993a85370b56d	not-for-merge	branch 'ruslan_final_passes_over_finetuning_scripts' of https://github.com/facebookresearch/seamless_communication
+98c13c835dc98ca9cd153a9610052b82e72f8099	not-for-merge	branch 'unit_extraction' of https://github.com/facebookresearch/seamless_communication
+0605da6bec492b9f71b6acffd6fc05b2c63219af	not-for-merge	branch 'vocoder-output-lang' of https://github.com/facebookresearch/seamless_communication
