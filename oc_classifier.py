@@ -73,9 +73,11 @@ class ASVDataset(Dataset):
                 for line in lines:
                     line = line.strip()
                     line = line.split(" ")
-                    if line[4] == "bonafide":
-                        self.file_list.append(line[1])
-                        self.label_list.append(line[4]) # bonafide only
+                    self.file_list.append(line[0])
+                    self.label_list.append("bonafide")
+                    # if line[4] == "bonafide":
+                    #     self.file_list.append(line[1])
+                    #     self.label_list.append(line[4]) # bonafide only
                         
         self._length = len(self.file_list)    
     

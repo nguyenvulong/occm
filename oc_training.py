@@ -318,6 +318,11 @@ if __name__== "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     aasist = AModel(None, device).to(device)
+    aasist.train()
+
+    aasist.ssl_model.eval()
+    for param in aasist.ssl_model.parameters():
+        param.requires_grad = False
     # ssl = SSLModel(device)
     # senet34 = se_resnet34().to(device)
     # lcnn = lcnn_net(asoftmax=False).to(device)
@@ -349,7 +354,8 @@ if __name__== "__main__":
         print(f"Epoch {epoch + 1}\n-------------------------------")
 
         # Training phase
-        aasist.train()
+        
+        #aasist.train()
         # ssl.eval()
         # senet34.train()
         # lcnn.train()
