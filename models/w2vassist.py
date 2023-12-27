@@ -12,12 +12,8 @@ from fairseq2.memory import MemoryBlock
 from fairseq2.nn.padding import get_seqs_and_padding_mask
 from fairseq2.data import Collater
 from pathlib import Path
+
 from seamless_communication.src.seamless_communication.models.conformer_shaw import load_conformer_shaw_model
-
-
-
-
-
 
 
 ___author__ = "Long Nguyen-Vu"
@@ -596,7 +592,8 @@ class AModel(nn.Module):
         
         return emb, output
 
-if __name__ == '__main__':
+
+def main():
     import librosa
     
     model = AModel(None,"cuda").to("cuda")
@@ -605,3 +602,6 @@ if __name__ == '__main__':
     emb, out = model(torch.Tensor(audio_data).unsqueeze(0).to("cuda"))
     print(emb.shape)
     print(out.shape)
+    
+if __name__ == '__main__':
+    main()

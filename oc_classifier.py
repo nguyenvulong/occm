@@ -1,27 +1,17 @@
 import os
 import argparse
-import librosa
 import torch
 import torch.nn.functional as F
 from torch.nn import DataParallel
 from torch.utils.data import Dataset
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
-import numpy as np
-from torchattacks import PGD
+from models.w2vassist import *
 
-
-from models.lcnn import *
-from models.senet import *
-from models.xlsr import *
-from models.sslassist import *
-
-from losses.custom_loss import compactness_loss, descriptiveness_loss, euclidean_distance_loss
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# to be used with one-class classifier
-# input is now a raw audio file
+
 
 
 class ASVDataset(Dataset):
@@ -51,9 +41,6 @@ class ASVDataset(Dataset):
         self.file_list = []
         self.label_list = []  
         self.eval = eval
-        # file_list is now the second column of the protocol file
-        # label list is now the fifth column of the protocol file
-        # read the protocol file
 
         if self.eval:
             # collect all files
@@ -73,12 +60,37 @@ class ASVDataset(Dataset):
                 for line in lines:
                     line = line.strip()
                     line = line.split(" ")
+                    # self.file_list.append(line[0])
+                    # self.label_list.append("bonafide") # bonafide only
                     if line[4] == "bonafide":
                         self.file_list.append(line[1])
                         self.label_list.append(line[4]) # bonafide only
                         
         self._length = len(self.file_list)    
+    def _preprocess_wav(self, audio_wav_path):
+        # Create a device and dtype 
+        dtype = torch.float32
+        device = torch.device("cuda")
+        audio_decoder = AudioDecoder(dtype=dtype, device=device)
+        fbank_converter = WaveformToFbankConverter(
+            num_mel_bins=80,
+            waveform_scale=2**15,
+            channel_last=True,
+            standardize=True,
+            device=device,
+            dtype=dtype,
+        )
+        collater = Collater(pad_value=1)
     
+
+        with Path(audio_wav_path).open("rb") as fb:
+            block = MemoryBlock(fb.read())
+        # print("Decoding audio...")
+        decoded_audio = audio_decoder(block)
+        src = collater(fbank_converter(decoded_audio))["fbank"]
+        seqs, padding_mask = get_seqs_and_padding_mask(src)
+        return seqs
+        
     def __len__(self):
         return self._length
 
@@ -89,8 +101,7 @@ class ASVDataset(Dataset):
         file_path = os.path.join(self.dataset_dir, audio_file + ".flac")
         if not os.path.exists(file_path):
             file_path = os.path.join(self.dataset_dir, audio_file + ".wav")
-
-        feature, _ = librosa.load(file_path, sr=None)
+        feature = self._preprocess_wav(file_path)
         feature_tensors = torch.tensor(feature, dtype=torch.float32)
 
         if self.eval == False:
@@ -179,10 +190,10 @@ def create_reference_embedding2(model, dataloader, device):
     total_distances = []
     
     with torch.no_grad():
-        for _, (data, target) in enumerate(dataloader):
+        for _, (data, _) in enumerate(dataloader):
             data = data.to(device)
-            target = target.to(device)
-            emb, out = model(data) # torch.Size([1, 160])
+            data.squeeze_(0)
+            emb, out = model(data)
             total_embeddings.append(emb)
     
     # reference embedding is the mean of all embeddings
@@ -255,6 +266,7 @@ def score_eval_set_1c2(model, dataloader, device, reference_embedding, threshold
         with torch.no_grad():
             for idx, (data, target) in enumerate(dataloader):
                 data = data.to(device)
+                data.squeeze_(0)
                 target = target.to(device)
                 emb, out = model(data)
                 print(f"Processing file counts: {idx} ...")
@@ -263,7 +275,6 @@ def score_eval_set_1c2(model, dataloader, device, reference_embedding, threshold
                     f.write(f"{float(distance)}, 1 \n")
                 else:
                     f.write(f"{float(distance)}, 0 \n")
-
 
 def score_eval_set_2c1(extractor, encoder, dataloader, device):
     """TWO-CLASS APPROACH:
@@ -338,24 +349,17 @@ if __name__== "__main__":
 
     # load pretrained weights
     aasist.load_state_dict(torch.load(args.pretrained_sslaasist))
-    # ssl.load_state_dict(torch.load(args.pretrained_ssl))
-    # senet.load_state_dict(torch.load(args.pretrained_senet))
     aasist = DataParallel(aasist)
-    # senet = DataParallel(senet)
-    # ssl = DataParallel(ssl)
     print("Pretrained weights loaded")
     
     # create a reference embedding & find a threshold
     train_dataset = ASVDataset(args.protocol_file, args.dataset_dir)
     train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
-    # reference_embedding, threshold = create_reference_embedding(ssl, senet, train_dataloader, device)
     reference_embedding, threshold = create_reference_embedding2(aasist, train_dataloader, device)
 
     # score the evaluation set
     eval_dataset = ASVDataset(args.eval_protocol_file, args.eval_dataset_dir, eval=True)
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=False, num_workers=0)
-    # score_eval_set(ssl, senet, eval_dataloader, device, reference_embedding, threshold)
     score_eval_set_1c2(aasist, eval_dataloader, device, reference_embedding, threshold)
-    # score_eval_set_2c2(aasist, eval_dataloader, device)
 
     print(f"threshold = {threshold}")

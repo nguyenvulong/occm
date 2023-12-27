@@ -17,7 +17,7 @@ def load_metadata(file_path):
         lines = f.readlines()
         for line in lines:
             line = line.strip()
-            label = line.split(" ")[5]
+            label = line.split(" ")[2]
             labels.append(label)
     return labels
 
@@ -40,8 +40,8 @@ def load_metadata_from_proto(meta_file_path, proto_file_path):
         lines = f.readlines()
         for line in lines:
             line = line.strip()
-            file_name = line.split(" ")[1]
-            label = line.split(" ")[5]
+            file_name = line.split(" ")[0]
+            label = line.split(" ")[2]
             if file_name in protos:
                 index = protos.index(file_name)
                 labels[index] = label
@@ -167,8 +167,8 @@ if __name__=="__main__":
     # and bonafide otherwise
     
     # create two lists: one for the labels and one for the predictions
-    # labels = metadata
-    labels = load_metadata_from_proto(args.metadata_file, args.protocol_file)
+    labels = metadata
+    # labels = load_metadata_from_proto(args.metadata_file, args.protocol_file)
     predictions = []
     for i, file_name in enumerate(proto):
         score = scores[i]
@@ -194,5 +194,5 @@ if __name__=="__main__":
     print(f"TN = {cm[1][1]}")
     print(f"FP = {cm[0][1]}")
     print(f"FN = {cm[1][0]}")
-    
+
     calculate_EER(scores, labels)

@@ -335,37 +335,21 @@ if __name__== "__main__":
     # Define the collate function
 
     train_dataset = PFDataset(args.train_protocol_file, dataset_dir=args.train_dataset_dir)
-    # test_dataset = PFDataset(args.test_protocol_file, dataset_dir=args.test_dataset_dir)
 
     # Create dataloaders for training and validation
     batch_size = 1
 
     print("Creating dataloaders...")
-    # train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=train_dataset.collate_fn)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-
-    # test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=test_dataset.collate_fn)
 
     print("Instantiating model...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     aasist = AModel(None, device).to(device)
-    # ssl = SSLModel(device)
-    # senet34 = se_resnet34().to(device)
-    # lcnn = lcnn_net(asoftmax=False).to(device)
+
     optimizer = optim.Adam(aasist.parameters(), lr=0.00001)
-    # optimizer = optim.Adam(list(ssl.parameters()) + list(senet34.parameters()) + list(lcnn.parameters()), lr=0.0001)
-    # optimizer = optim.Adam(list(ssl.parameters()) + list(senet34.parameters()), lr=0.00001, weight_decay=0.0005)
 
     aasist = DataParallel(aasist)
-
-    # ssl = DataParallel(ssl)
-    # senet34 = DataParallel(senet34)
-    # lcnn = DataParallel(lcnn)
-
-    # if args.model == "lcnn_net_asoftmax":
-    #     criterion = AngleLoss()
-
 
     # WandB – Initialize a new run
     wandb.init(project="oc_classifier-w2v", entity="longnv")
@@ -382,9 +366,7 @@ if __name__== "__main__":
 
         # Training phase
         aasist.train()
-        # ssl.eval()
-        # senet34.train()
-        # lcnn.train()
+
         
         running_loss = 0.0
         running_closs = 0.0
@@ -422,7 +404,4 @@ if __name__== "__main__":
                 wandb.log({"Epoch": epoch, "Train Loss": running_loss / (i+1), "Train Compactness Loss": running_closs / (i+1), "Train Descriptiveness Loss": running_dloss / (i+1)})
         # save the models after each epoch
         print("Saving the models...")
-        # torch.save(ssl.module.state_dict(), f"ssl_vocoded_{epoch}.pt")
-        # torch.save(senet34.module.state_dict(), f"senet34_vocoded_{epoch}.pt")
         torch.save(aasist.module.state_dict(), f"w2v_vocoded_{epoch}.pt")
-        # torch.save(lcnn.module.state_dict(), f"lcnn_{epoch}.pt")
